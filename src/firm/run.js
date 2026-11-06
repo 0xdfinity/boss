@@ -79,10 +79,14 @@ export async function runJob({ brief, budget = 20, client = "you", paceMs = 0, o
       }
 
       let deliverable = "";
+      let producer = null;
       try {
         onEvent({ type: "stage.start", stage: stage.kind, agent: agent.id, price: agent.price, title: stage.title });
         const out = await executeFn(agent, stage, { prior, critique });
         deliverable = out.deliverable;
+        // Which provider actually produced this stage. The judge records its own
+        // provider separately, and they can differ when one provider rate-limits.
+        producer = out.via || null;
       } catch (e) {
         recordFn(agent.id, false);
         onEvent({ type: "stage.rejected", stage: stage.kind, agent: agent.id, reason: String(e.message || e).slice(0, 160) });
@@ -128,7 +132,16 @@ export async function runJob({ brief, budget = 20, client = "you", paceMs = 0, o
 
       recordFn(agent.id, true);
       spent = round(spent + agent.price);
-      payments.push({ stage: stage.kind, agent: agent.id, amount: agent.price, tx: auth.tx, url: auth.url, mode: auth.mode });
+      payments.push({
+        stage: stage.kind,
+        agent: agent.id,
+        amount: agent.price,
+        tx: auth.tx,
+        url: auth.url,
+        mode: auth.mode,
+        producer,
+        judge: verdict.mode,
+      });
 
       onEvent({
         type: "verifier.attested",
@@ -136,6 +149,7 @@ export async function runJob({ brief, budget = 20, client = "you", paceMs = 0, o
         agent: agent.id,
         confidence: verdict.score / 100,
         mode: verdict.mode,
+        producer,
         reasons: verdict.reasons,
       });
       onEvent({

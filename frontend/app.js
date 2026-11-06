@@ -390,7 +390,9 @@ form.addEventListener("submit", async (e) => {
       case "verifier.attested":
         setAgent("verifier", "done");
         add(
-          `${ev.stage} accepted · ${Math.round((ev.confidence || 0) * 100)}/100 · ${ev.mode}${ev.reasons?.[0] ? ` · ${ev.reasons[0]}` : ""}`,
+          `${ev.stage} accepted · ${Math.round((ev.confidence || 0) * 100)}/100 · ${
+            ev.producer ? `made by ${ev.producer} · ` : ""
+          }judged by ${ev.mode}${ev.reasons?.[0] ? ` · ${ev.reasons[0]}` : ""}`,
           "note",
           "⬡ judge"
         );
