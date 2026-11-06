@@ -1,0 +1,18 @@
+.opencode/runs/
+node_modules/
+dist/
+build/
+.env
+.env.*
+!.env.example
+*.log
+
+# runtime state (agent registry, job logs)
+data/
+
+# rust build output
+contracts/**/target/
+**/target/
+
+# local chain home
+.chain/

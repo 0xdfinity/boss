@@ -1,0 +1,285 @@
+// BOSS API server (Node, zero dependencies) — serves the web UI + firm API.
+//
+// Public surface:
+//   POST /api/mission            run a job, return the full result
+//   GET  /api/mission/stream     run a job, stream events (the chat UI)
+//   POST /api/firm/work          BOSS as a worker: another agent hires it
+//   GET  /api/firm/jobs          list jobs
+//   POST /api/firm/jobs          queue a job for BOSS
+//   GET  /api/firm/jobs/:id      job status + result
+//   GET  /api/agents             the agent registry
+//   POST /api/agents             register an outside agent (id, capability, price, endpoint, stake)
+//   GET  /api/treasury           chain mode + treasury snapshot
+//   GET  /health                 liveness + what is live
+
+import { createServer } from "node:http";
+import { readFileSync, existsSync } from "node:fs";
+import { join, dirname, extname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { randomUUID } from "node:crypto";
+import { runJob } from "../firm/run.js";
+import { listAgents, registerAgent } from "../firm/agents.js";
+import { treasury } from "../chain/treasury.js";
+import { providersInOrder } from "../ai/model.js";
+import { BOSS_POLICY } from "../security/policies.js";
+import { env } from "../config/env.js";
+
+const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const webRoot = join(root, "frontend");
+
+const MIME = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".ico": "image/x-icon",
+};
+
+function json(res, code, body) {
+  res.writeHead(code, {
+    "content-type": "application/json",
+    "cache-control": "no-store",
+    "access-control-allow-origin": "*",
+  });
+  res.end(JSON.stringify(body));
+}
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = "";
+    req.on("data", (c) => {
+      body += c;
+      if (body.length > 2e6) reject(new Error("body too large"));
+    });
+    req.on("end", () => resolve(body));
+    req.on("error", reject);
+  });
+}
+
+const jobs = new Map();
+
+function createJob({ brief, budget = 20, client = "you" }) {
+  const id = randomUUID().slice(0, 8);
+  const job = { id, brief, budget, client, status: "running", createdAt: new Date().toISOString(), events: [] };
+  jobs.set(id, job);
+  return job;
+}
+
+async function executeJob(job) {
+  try {
+    job.result = await runJob({
+      brief: job.brief,
+      budget: job.budget,
+      client: job.client,
+      onEvent: (e) => job.events.push(e),
+    });
+    job.status = job.result.error ? "failed" : "done";
+  } catch (e) {
+    job.status = "failed";
+    job.error = String(e.message || e);
+  }
+  job.finishedAt = new Date().toISOString();
+  return job;
+}
+
+const server = createServer(async (req, res) => {
+  const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+
+  if (req.method === "OPTIONS") {
+    res.writeHead(204, {
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET,POST,OPTIONS",
+      "access-control-allow-headers": "content-type",
+    });
+    return res.end();
+  }
+
+  if (url.pathname === "/health") {
+    const chain = await treasury.snapshot();
+    return json(res, 200, {
+      ok: true,
+      service: "boss",
+      policy: BOSS_POLICY,
+      live: {
+        models: providersInOrder().map((p) => p.name),
+        intents: Boolean(env.intentsJwt),
+        treasury: env.treasuryContractId || "not-deployed",
+        chain,
+      },
+      agents: listAgents().length,
+    });
+  }
+
+  // ---- run a job, streamed (the chat UI) ----
+  if (url.pathname === "/api/mission/stream" && req.method === "GET") {
+    const brief = (url.searchParams.get("task") || "").trim();
+    const budget = Number(url.searchParams.get("budget") || 20);
+    if (!brief) return json(res, 400, { error: "task required" });
+
+    res.writeHead(200, {
+      "content-type": "text/event-stream; charset=utf-8",
+      "cache-control": "no-store",
+      connection: "keep-alive",
+      "x-accel-buffering": "no",
+      "access-control-allow-origin": "*",
+    });
+
+    const send = (event) => res.write(`data: ${JSON.stringify(event)}\n\n`);
+    try {
+      const result = await runJob({ brief, budget, paceMs: 40, onEvent: send });
+      send({ type: "job.result", ...result });
+    } catch (e) {
+      send({ type: "mission.error", error: String(e.message || e) });
+    }
+    return res.end();
+  }
+
+  // ---- run a job, one shot ----
+  if (url.pathname === "/api/mission" && req.method === "POST") {
+    try {
+      const { task, brief, budget } = JSON.parse((await readBody(req)) || "{}");
+      const text = (brief || task || "").trim();
+      if (!text) return json(res, 400, { error: "brief required" });
+      const events = [];
+      const result = await runJob({
+        brief: text,
+        budget: Number(budget) || 20,
+        onEvent: (e) => events.push(e),
+      });
+      return json(res, 200, { ...result, events });
+    } catch (e) {
+      return json(res, 500, { error: String(e.message || e) });
+    }
+  }
+
+  // ---- BOSS as a worker: another company or agent hires it ----
+  if (url.pathname === "/api/firm/work" && req.method === "POST") {
+    try {
+      const body = JSON.parse((await readBody(req)) || "{}");
+      const brief = String(body.brief || body.task || "").trim();
+      if (!brief) return json(res, 400, { error: "brief required" });
+      const budget = Math.min(Number(body.budget) || 5, 20);
+      const client = String(body.client || "anonymous-agent").slice(0, 64);
+
+      const job = createJob({ brief, budget, client });
+      await executeJob(job);
+
+      if (job.error) return json(res, 500, { error: job.error, jobId: job.id });
+      const r = job.result;
+      return json(res, 200, {
+        jobId: job.id,
+        client,
+        brief,
+        deliverable: r.artifact,
+        accepted: r.verdict?.ok ?? false,
+        score: r.verdict?.score ?? null,
+        invoice: { amount: r.spent, currency: "USD", settled: r.payments.length, mode: treasury.mode },
+        payments: r.payments,
+        stages: r.stages?.map((s) => ({ kind: s.kind, agent: s.agent, price: s.price })),
+        ms: r.ms,
+      });
+    } catch (e) {
+      return json(res, 500, { error: String(e.message || e) });
+    }
+  }
+
+  // ---- job queue ----
+  if (url.pathname === "/api/firm/jobs" && req.method === "GET") {
+    return json(res, 200, {
+      jobs: [...jobs.values()]
+        .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+        .map((j) => ({ id: j.id, brief: j.brief, status: j.status, createdAt: j.createdAt, spent: j.result?.spent })),
+    });
+  }
+
+  if (url.pathname === "/api/firm/jobs" && req.method === "POST") {
+    try {
+      const body = JSON.parse((await readBody(req)) || "{}");
+      const brief = String(body.brief || body.task || "").trim();
+      if (!brief) return json(res, 400, { error: "brief required" });
+      const job = createJob({
+        brief,
+        budget: Math.min(Number(body.budget) || 5, 20),
+        client: String(body.client || "you").slice(0, 64),
+      });
+      executeJob(job); // async; poll /api/firm/jobs/:id
+      return json(res, 202, { id: job.id, status: job.status });
+    } catch (e) {
+      return json(res, 400, { error: String(e.message || e) });
+    }
+  }
+
+  if (url.pathname.startsWith("/api/firm/jobs/") && req.method === "GET") {
+    const id = url.pathname.split("/").pop();
+    const job = jobs.get(id);
+    if (!job) return json(res, 404, { error: "job not found" });
+    return json(res, 200, {
+      id: job.id,
+      brief: job.brief,
+      status: job.status,
+      client: job.client,
+      spent: job.result?.spent ?? 0,
+      artifact: job.result?.artifact ?? null,
+      verdict: job.result?.verdict ?? null,
+      payments: job.result?.payments ?? [],
+      error: job.error || job.result?.error || null,
+    });
+  }
+
+  // ---- agent registry ----
+  if (url.pathname === "/api/agents" && req.method === "GET") {
+    return json(res, 200, { agents: listAgents() });
+  }
+
+  if (url.pathname === "/api/agents" && req.method === "POST") {
+    try {
+      const body = JSON.parse((await readBody(req)) || "{}");
+      const agent = registerAgent(body);
+      // An outside agent must exist on-chain before the treasury can pay it.
+      treasury.ensureAgents([agent.id]).catch((e) => console.log(`  agent registration failed: ${e.message}`));
+      return json(res, 201, { agent });
+    } catch (e) {
+      return json(res, 400, { error: String(e.message || e) });
+    }
+  }
+
+  // ---- treasury ----
+  if (url.pathname === "/api/treasury" && req.method === "GET") {
+    return json(res, 200, await treasury.snapshot());
+  }
+
+  // ---- static web app ----
+  const file = url.pathname === "/" ? "index.html" : url.pathname.slice(1);
+  const full = join(webRoot, file);
+
+  if (!full.startsWith(webRoot)) {
+    res.writeHead(403);
+    return res.end("forbidden");
+  }
+
+  if (existsSync(full)) {
+    res.writeHead(200, {
+      "content-type": MIME[extname(full)] || "application/octet-stream",
+      "cache-control": "no-store",
+    });
+    return res.end(readFileSync(full));
+  }
+
+  res.writeHead(404, { "content-type": "text/plain" });
+  res.end("not found");
+});
+
+server.listen(env.port, () => {
+  console.log(`BOSS listening on http://localhost:${env.port}`);
+  const chain = providersInOrder().map((p) => p.name).join(" → ") || "no model configured";
+  console.log(`  models: ${chain}`);
+  console.log(`  treasury: ${treasury.live ? `${treasury.contractId} on ${treasury.network}` : "local mirror (no key/contract)"}`);
+  if (treasury.live) {
+    treasury
+      .ensureAgents(listAgents().map((a) => a.id))
+      .then((r) => console.log(`  agents on-chain: ${r.registered?.length ?? 0} new`))
+      .catch((e) => console.log(`  treasury setup skipped: ${e.message}`));
+  }
+});

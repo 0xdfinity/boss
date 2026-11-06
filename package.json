@@ -1,0 +1,20 @@
+{
+  "name": "boss",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "B.O.S.S. — Business Owned & Operated by Software Swarm",
+  "scripts": {
+    "start": "node src/server/index.js",
+    "server": "node src/server/index.js",
+    "cli": "node src/index.js",
+    "dryrun": "node scripts/dryrun.mjs",
+    "external-agent": "node scripts/external_agent.js",
+    "deploy:testnet": "node scripts/deploy_testnet.mjs",
+    "test": "node --test tests/policies.test.js tests/plan.test.js tests/firm.test.js tests/fallback.test.js",
+    "typecheck": "node --check src/server/index.js && node --check src/firm/run.js && node --check src/chain/near.js && node --check frontend/app.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
