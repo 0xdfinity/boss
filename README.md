@@ -86,6 +86,8 @@ The `arbiter` slot exists in state from day one. There is no arbiter panel yet: 
 | Treasury | Rust contract, `near-sdk` 5 | Caps, payouts, audit log on NEAR |
 | Market | Rust contract, `near-sdk` 5 | Cross-firm escrow, deadlines, reputation |
 
+The router tries NEAR AI Cloud first, then Groq. **The live demo runs Groq**: `NEAR_AI_MODEL` is empty. Set it plus a NEAR AI Cloud key and the same router calls NEAR AI first — `GET /health` lists the providers in order, so the claim is checkable rather than asserted.
+
 ## Architecture
 
 ```text
