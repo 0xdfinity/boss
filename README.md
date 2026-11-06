@@ -134,7 +134,16 @@ npm test            # 30 tests: policy caps, plan rules, firm flow, acceptance, 
 npm run server      # http://127.0.0.1:8787
 ```
 
-Open the page, type a brief, press send. Without a model key the job still runs, but verdicts fall back to rules only.
+Open the page, type a brief, press send. With no model key the firm refuses the first stage and pays nothing — it does not guess at the work — and the feed says which key to set.
+
+**Chain setup (only needed for real payments).** Without a wallet the treasury runs in `mirror` mode: the caps and verdicts are real, no transaction is sent. For settlement on testnet, put a funded testnet account and its full-access key in `.env`:
+
+```console
+NEAR_ACCOUNT=you.testnet
+NEAR_PRIVATE_KEY=ed25519:...
+```
+
+Any testnet account works — a wallet key imports directly, and NEAR's testnet faucet funds a new one. The two deploy scripts below create the contract accounts from that key and write the ids back. The key stays server-side and is gitignored.
 
 **The market demo (two firms, real escrow):**
 

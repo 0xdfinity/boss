@@ -201,7 +201,7 @@ async function main() {
   }
 
   line();
-  console.log("done. run `npm start` and `npm run worker`, then open http://localhost:" + env.port + " for the live UI.");
+  console.log("done. run `npm start` and `npm run worker`, then open http://127.0.0.1:" + env.port + " for the live UI.");
 }
 
 main()

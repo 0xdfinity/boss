@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "description": "B.O.S.S. — Business Owned & Operated by Software Swarm",
+  "license": "MIT",
   "scripts": {
     "start": "node src/server/index.js",
     "server": "node src/server/index.js",

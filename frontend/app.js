@@ -102,7 +102,7 @@ try {
   const models = health.live?.models || [];
   const chain = health.live?.chain || {};
   const live = models.length > 0;
-  spentPill.dataset.live = live ? "live" : "demo";
+  spentPill.dataset.live = live ? "live" : "mirror";
   spentPill.title = [
     models.length ? `models: ${models.join(" → ")}` : "no model key — set GROQ_API_KEY",
     chain.mode === "near" ? `treasury: ${chain.contract} on ${chain.network}` : "treasury: local mirror",
