@@ -2,7 +2,7 @@
 // quotes a price, wins work on price, and gets paid on-chain when its output
 // passes the judge.
 //
-//   node scripts/external_agent.js --port 8791 --boss http://localhost:8787
+//   node scripts/external_agent.js --port 8791 --boss http://127.0.0.1:8787
 //
 // It critiques prose with deterministic heuristics (no model, no API key), so it
 // can run on a laptop while BOSS runs on another machine — which is the point.
@@ -16,7 +16,7 @@ const flag = (name, fallback) => {
 };
 
 const PORT = Number(flag("port", 8791));
-const BOSS = flag("boss", "http://localhost:8787");
+const BOSS = flag("boss", "http://127.0.0.1:8787");
 const PRICE = Number(flag("price", 0.35)); // undercuts the in-house critic at $0.45
 const ACCOUNT = flag("account", ""); // a NEAR account to be paid in, if BOSS is on-chain
 const ID = flag("id", "verity.critique");

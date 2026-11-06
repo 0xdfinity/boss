@@ -6,10 +6,15 @@
 // install step. The surface here is deliberately small: view, call, deploy,
 // create account, transfer.
 
-import { createPrivateKey, createPublicKey, sign as edSign, createHash } from "node:crypto";
+import { createPrivateKey, createPublicKey, generateKeyPairSync, sign as edSign, createHash } from "node:crypto";
 
 // ---------------------------------------------------------------- base58
 const ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+
+// Public fallback for testnet reads and sends. near.org's public endpoint is
+// being retired; FastNEAR's free endpoint needs no key and speaks the same
+// JSON-RPC. Anything the caller configures still wins.
+const PUBLIC_RPC = "https://test.rpc.fastnear.com";
 
 export function b58encode(bytes) {
   const buf = Buffer.from(bytes);
@@ -77,6 +82,23 @@ function publicFromSecret(seed) {
 export function signBytes(seed, message) {
   const key = createPrivateKey({ key: Buffer.concat([PKCS8, seed]), format: "der", type: "pkcs8" });
   return edSign(null, message, key);
+}
+
+/**
+ * A fresh ed25519 key in the same `ed25519:<base58(seed || pub)>` shape the
+ * NEAR CLI writes, so a key generated here can be pasted into `near-cli`
+ * without conversion.
+ */
+export function generateKey() {
+  const { privateKey, publicKey } = generateKeyPairSync("ed25519");
+  const seed = privateKey.export({ type: "pkcs8", format: "der" }).subarray(-32);
+  const pub = publicKey.export({ type: "spki", format: "der" }).subarray(-32);
+  return {
+    secret: seed,
+    publicKey: pub,
+    publicKeyStr: `ed25519:${b58encode(pub)}`,
+    secretStr: `ed25519:${b58encode(Buffer.concat([seed, pub]))}`,
+  };
 }
 
 // ---------------------------------------------------------------- borsh
@@ -200,8 +222,11 @@ export function signTransaction(txBytes, seed) {
 
 // ---------------------------------------------------------------- rpc
 export class Near {
-  constructor({ rpcUrl, accountId, privateKey }) {
-    this.rpcUrl = rpcUrl || "https://rpc.testnet.near.org";
+  constructor({ rpcUrl, fallbackRpcUrl, accountId, privateKey }) {
+    this.rpcUrl = rpcUrl || PUBLIC_RPC;
+    this.mainnet = /mainnet/.test(this.rpcUrl);
+    this.fallbackRpcUrl =
+      fallbackRpcUrl || (this.mainnet ? "https://free.rpc.fastnear.com" : PUBLIC_RPC);
     this.accountId = accountId || "";
     this.key = privateKey ? parseKey(privateKey) : null;
     // One access key means one nonce: serialize sends so two agents cannot
@@ -214,7 +239,29 @@ export class Near {
   }
 
   async rpc(method, params) {
-    const res = await fetch(this.rpcUrl, {
+    // near.org is retiring its public RPC and answers some requests with a
+    // deprecation string instead of a result. Keep the configured URL, but on
+    // the first such answer move the whole process to a working endpoint —
+    // retrying per call would fail a poll loop every few seconds forever.
+    if (this._rpcUrl) return this.post(this._rpcUrl, method, params);
+
+    try {
+      const out = await this.post(this.rpcUrl, method, params);
+      this._rpcUrl = this.rpcUrl;
+      return out;
+    } catch (e) {
+      const msg = String(e.message || e);
+      const dead = /DEPRECATED|ENOTFOUND|EAI_AGAIN/i.test(msg);
+      if (!dead || this.fallbackRpcUrl === this.rpcUrl) throw e;
+      console.error(`[near] ${this.rpcUrl} is unusable (${msg.slice(0, 90)}); switching to ${this.fallbackRpcUrl}`);
+      const out = await this.post(this.fallbackRpcUrl, method, params);
+      this._rpcUrl = this.fallbackRpcUrl;
+      return out;
+    }
+  }
+
+  async post(url, method, params) {
+    const res = await fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ jsonrpc: "2.0", id: "boss", method, params }),
@@ -228,6 +275,21 @@ export class Near {
       throw new Error(`${method}: ${msg} ${data.slice(0, 300)}`.trim());
     }
     return body.result;
+  }
+
+  // The value a function call returned, decoded. `open_job` returns the id it
+  // just created, which is the only trustworthy source for it: a view call
+  // straight after the transaction can still read the previous block.
+  successValue(out) {
+    const raw = out?.status?.SuccessValue;
+    if (typeof raw !== "string" || raw === "") return null;
+    const text = Buffer.from(raw, "base64").toString("utf8");
+    if (!text) return null;
+    try {
+      return JSON.parse(text);
+    } catch {
+      return text;
+    }
   }
 
   status() {

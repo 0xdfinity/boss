@@ -17,6 +17,9 @@ BOSS turns a brief into a four-stage job — research, draft, critique, revise �
 1. **The model proposes, the contract decides.** The Rust treasury contract on NEAR enforces a `$2.00` per-payment cap and a `$20.00` daily budget. The server can ask for money; it cannot grant it.
 2. **Verify first, pay second.** Deterministic rules check word bounds, the requested list count, the required pick, refusals, and whether the revision actually changed the draft. Drafts and revisions then face a model rubric that scores them against the brief.
 3. **Outside agents are first-class.** Any agent can register a capability, a price, and a URL. If it wins the job, the contract sends it real NEAR. In-house agents are salaried and audited on the same ledger.
+4. **Another firm can hire this one, and neither holds the other's money.** `boss_market` escrows the client's deposit against a spec hash. A worker firm with its own account and key delivers, publishes the result hash, and gets paid only after the client fetches the bytes, checks the hash, and judges the work. A refusal refunds the escrow. Two firms, one contract, no trust between them.
+
+Status: both contracts are live on NEAR testnet. Cross-chain payout is a labelled dry quote, not a settled transfer; the tagline is the direction, not a claim about today.
 
 Verification is honest: rules plus a model rubric today, with staked agents and challenge windows as the next step. No zk proofs, no TEE claims for work that never ran in one.
 
@@ -25,7 +28,7 @@ Verification is honest: rules plus a model rubric today, with staked agents and 
 ![BOSS running a job on NEAR testnet](docs/boss-ui.png)
 
 ```text
-npm run server        →  http://localhost:8787
+npm run server        →  http://127.0.0.1:8787
 brief  "Write 5 taglines for a coffee subscription, then pick the strongest"
 result 4 agents paid · $2.40 · client verdict 78/100
 ```
@@ -35,6 +38,41 @@ This run settled four payments on NEAR testnet:
 [draft](https://testnet.nearblocks.io/txns/q1y9Ry9szm2pw3SZ72YA6v5Effu8KdSb4SwaRvF367X) ·
 [critique](https://testnet.nearblocks.io/txns/4wwwhNGGhSs25rLEfNWEwNyn6biNdgh4GMu7o55HVB6T) ·
 [revise](https://testnet.nearblocks.io/txns/GXFE2JMQtNTpdw4Jm4eWzL7e1umcRAH5CTJYUmgwiWAY)
+
+## Two firms, one escrow
+
+The market is the part that makes this a protocol rather than a single app. The client is `boss-firm-506331.testnet`; the worker is `boss-worker-533815.testnet`, a separate top-level account with its own key. The contract is [`market.boss-firm-506331.testnet`](https://testnet.nearblocks.io/address/market.boss-firm-506331.testnet).
+
+```text
+npm run demo
+```
+
+That script starts both firms and runs two real jobs:
+
+| Job | What happened | Settlement |
+|---|---|---|
+| A — five taglines | The worker delivered; the client fetched the bytes, matched the hash, judged 88/100 | [released 0.05 NEAR](https://testnet.nearblocks.io/txns/CRPK2PB3WS8tAC1pad8GxNxKYP7Gygep2Xc9ntjh7FN1) |
+| B — requires a live source URL | The worker has no browser, said so in writing instead of inventing a source; the client's rules caught the refusal | [refunded 0.05 NEAR](https://testnet.nearblocks.io/txns/BQ1f8e6vccPrbv29dqvecJzTuYqwdKmvZQuQZzLmzxyR) |
+
+The second job is the point. A payment demo shows money moving; this one shows money **not** moving because a claim did not survive the check.
+
+![The BOSS market panel: job A released, job B refunded](docs/boss-market.png)
+
+*The market panel after a run started from the browser. The scripted demo produces the same two outcomes.*
+
+The open transactions are on chain too:
+[job A opened](https://testnet.nearblocks.io/txns/ppSB8cz5tzbvz8ax5ySFkrLzCTY3LuVFxaqBdhMg5Ap) ·
+[job B opened](https://testnet.nearblocks.io/txns/H2WjfPQoMbuNju9TDS7J8TCdFnVxWXtwAobG8J5cxBGs).
+
+What the contract enforces today:
+
+- a client cannot deliver its own job
+- a submitted job cannot be settled twice
+- only the client (or the optional `arbiter`) can release
+- anyone can refund after the deadline, so a silent client cannot strand escrow
+- a submitted-then-refunded job counts as a failure against the worker's reputation
+
+The `arbiter` slot exists in state from day one. There is no arbiter panel yet: a panel is real design work, and a timeout is the honest version today.
 
 ## Tech Stack
 
@@ -46,6 +84,7 @@ This run settled four payments on NEAR testnet:
 | Verification | Deterministic rules, then model rubric | Decide whether a stage gets paid |
 | Models | NEAR AI Cloud, Groq, rule-only fallback | Prose and verdicts |
 | Treasury | Rust contract, `near-sdk` 5 | Caps, payouts, audit log on NEAR |
+| Market | Rust contract, `near-sdk` 5 | Cross-firm escrow, deadlines, reputation |
 
 ## Architecture
 
@@ -58,6 +97,22 @@ browser → /api/mission/stream (SSE)
 
 The server signs one transaction at a time per access key, so concurrent stage payments cannot collide on a nonce.
 
+The cross-firm path is separate and deliberately small:
+
+```text
+client firm                          worker firm
+  POST /api/market/jobs                GET  /api/market          (poll open jobs)
+  → boss_market.open_job(deposit)      → GET  spec_url
+                                       → produce deliverable
+                                       → GET  /result/:id        (serve the bytes)
+                                       → boss_market.submit(hash, url)
+  POST /api/market/jobs/:id/settle
+  → fetch result_url → sha256 == result_hash?
+  → rules + rubric → boss_market.release() | refund()
+```
+
+If the hash does not match, or the result cannot be fetched, the client refunds. It never pays on the worker's word.
+
 ## Key Features
 
 - One brief becomes a priced, payable job with a fixed stage order
@@ -65,20 +120,29 @@ The server signs one transaction at a time per access key, so concurrent stage p
 - Outside agents undercut in-house prices and receive real NEAR when they win
 - Spend caps live in the contract, not in the prompt
 - Every hire, verdict, and payment appears in the live feed with a transaction hash
+- A second firm can be hired through `boss_market`; the client releases or refunds after checking the result hash
 - Same pipeline runs headless: `node src/index.js --brief "…"`
 
 ## Quick Start
 
-**Prerequisites:** Node 20 or newer. Rust with the `wasm32-unknown-unknown` target only if you redeploy the contract.
+**Prerequisites:** Node 20 or newer. Rust with the `wasm32-unknown-unknown` target only if you redeploy the contracts.
 
 ```console
 # from an existing checkout of this repository
 npm install         # zero runtime dependencies
-npm test            # 23 tests: policy caps, plan rules, firm flow, fallbacks
-npm run server      # http://localhost:8787
+npm test            # 30 tests: policy caps, plan rules, firm flow, acceptance, RPC failover, fallbacks
+npm run server      # http://127.0.0.1:8787
 ```
 
 Open the page, type a brief, press send. Without a model key the job still runs, but verdicts fall back to rules only.
+
+**The market demo (two firms, real escrow):**
+
+```console
+npm run demo
+```
+
+This starts the server and the worker if they are not already up, opens two jobs, and prints the settlement transactions. It needs the market deployment described below. To drive the same flow from the UI, run `npm start` and `npm run worker` in separate terminals, then open the page and press **market**.
 
 **Headless run:**
 
@@ -93,7 +157,14 @@ cargo build --release --target wasm32-unknown-unknown --manifest-path contracts/
 npm run deploy:testnet
 ```
 
-`deploy:testnet` creates the worker sub-account if needed, deploys the contract, initialises it, and writes the contract id back to `.env`. It never prints the key.
+**Testnet market + second firm:**
+
+```console
+cargo build --release --target wasm32-unknown-unknown --manifest-path contracts/boss_market/Cargo.toml
+npm run deploy:market
+```
+
+`deploy:market` creates `market.<your-account>.testnet`, deploys and initialises the contract, creates a second top-level account with its own key, funds it for gas, and writes the ids back to `.env`. It never prints a key. `deploy:testnet` does the same for the treasury.
 
 **Environment variables** (copy `.env.example` to `.env`; `.env` is gitignored):
 
@@ -105,25 +176,31 @@ npm run deploy:testnet
 | `NEAR_AI_API_KEY` | optional | primary model provider |
 | `NEAR_AI_MODEL` | optional | leave empty to skip NEAR AI |
 | `NEAR_AI_BASE_URL` | no | default `https://cloud.near.ai` |
-| `NEAR_ACCOUNT` | for on-chain pay | treasury signer account |
+| `NEAR_ACCOUNT` | for on-chain pay | treasury and market signer account |
 | `NEAR_PRIVATE_KEY` | for on-chain pay | signer key, server-side only |
 | `BOSS_TREASURY_CONTRACT_ID` | for on-chain pay | deployed treasury contract |
-| `NEAR_RPC_URL` | no | default `https://rpc.testnet.near.org` |
+| `BOSS_MARKET_CONTRACT_ID` | for the market | deployed escrow contract |
+| `BOSS_WORKER_ACCOUNT` | for the market | second firm's account |
+| `BOSS_WORKER_KEY` | for the market | second firm's key, server-side only |
+| `BOSS_WORKER_PORT` | no | default `8795` |
+| `BOSS_WORKER_URL` | no | default `http://127.0.0.1:8795` |
+| `BOSS_WORKER_TOOLS` | no | tools the worker really has; empty means it declines specs that need one |
+| `NEAR_RPC_URL` | no | default `https://test.rpc.fastnear.com`; near.org's public endpoint is retiring |
 | `NEAR_NETWORK` | no | `testnet` or `mainnet` |
 | `NEAR_USD_RATE` | no | USD per NEAR for transfers; default `10` |
-| `SITE_URL` | no | default `http://localhost:8787` |
+| `SITE_URL` | no | default `http://127.0.0.1:8787`; where specs are published |
 | `PORT` | no | default `8787` |
 
 ## Project Structure
 
 ```text
-frontend/     composer, live feed, deliverable card
-src/firm/     stages, prompts, rules, judge, orchestration
-src/chain/    dependency-free NEAR client and treasury adapter
+frontend/     composer, live feed, deliverable card, market panel
+src/firm/     stages, prompts, rules, judge, acceptance, worker firm
+src/chain/    dependency-free NEAR client, treasury adapter, market adapter
 src/ai/       model chain (NEAR AI → Groq → none)
-src/server/   HTTP API and SSE stream
-contracts/    boss_treasury (Rust)
-scripts/      testnet deploy, dry run, external agent
+src/server/   HTTP API, SSE stream, market routes
+contracts/    boss_treasury and boss_market (Rust)
+scripts/      testnet deploys, market demo, worker daemon, dry run
 tests/        node --test suites
 ```
 

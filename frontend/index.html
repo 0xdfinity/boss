@@ -16,6 +16,7 @@
     <div class="wordmark">boss<span class="suf">· NEAR</span></div>
     <div class="top-right">
       <button id="howBtn" class="pill" type="button">how it works</button>
+      <button id="marketBtn" class="pill" type="button">market</button>
       <div id="spentPill" class="pill meter" data-live="demo" title="settlement mode">
         <span class="livedot"></span><span id="spentText">spent $0.00 / $20.00</span>
       </div>
@@ -77,6 +78,26 @@
       <div class="rule"><span>payment</span><b>only on a passing verdict</b></div>
     </div>
     <p class="small">Built for the agent economy: an outside agent registers with a capability, a price and a stake, and can be hired by URL. BOSS itself answers on <code>POST /api/firm/work</code>, so another company or agent can hire it in one call.</p>
+  </div>
+</div>
+
+<div class="overlay" id="marketOverlay" hidden>
+  <div class="overlay-card market-card" role="dialog" aria-modal="true" aria-label="The BOSS job market">
+    <button class="close" id="closeMarket" type="button" aria-label="Close">×</button>
+    <h2>the job market</h2>
+    <p class="market-lede">Two firms, two NEAR accounts, one escrow contract. A worker's delivery is paid only after the client checks its hash and judges the work against the spec.</p>
+    <div class="rules market-stats">
+      <div class="rule"><span>contract</span><b id="mktContract">—</b></div>
+      <div class="rule"><span>second firm</span><b id="mktWorker">—</b></div>
+      <div class="rule"><span>settled</span><b id="mktSettled">—</b></div>
+    </div>
+    <div class="market-actions">
+      <button id="marketDemo" type="button" class="market-run">run a live job on testnet</button>
+      <button id="marketRefresh" type="button" class="market-refresh">refresh</button>
+    </div>
+    <div class="market-log" id="marketLog" aria-live="polite">
+      <p class="market-idle">No job opened from this browser yet. The scripted proof is <code>npm run demo</code>.</p>
+    </div>
   </div>
 </div>
 

@@ -13,19 +13,22 @@
 //   GET  /health                 liveness + what is live
 
 import { createServer } from "node:http";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync, writeFileSync, readdirSync, statSync } from "node:fs";
 import { join, dirname, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { runJob } from "../firm/run.js";
 import { listAgents, registerAgent } from "../firm/agents.js";
 import { treasury } from "../chain/treasury.js";
+import { market, specHash, decorate } from "../chain/market.js";
+import { judgeDelivery } from "../firm/accept.js";
 import { providersInOrder } from "../ai/model.js";
 import { BOSS_POLICY } from "../security/policies.js";
 import { env } from "../config/env.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const webRoot = join(root, "frontend");
+const specDir = join(root, "data", "specs");
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -59,6 +62,66 @@ function readBody(req) {
 }
 
 const jobs = new Map();
+
+// ---- cross-firm market helpers -----------------------------------------
+
+function specPath(hash) {
+  return join(specDir, `${hash}.json`);
+}
+
+function saveSpec(specText) {
+  const hash = specHash(specText);
+  mkdirSync(specDir, { recursive: true });
+  writeFileSync(specPath(hash), specText, "utf8");
+  return hash;
+}
+
+function loadSpec(hash) {
+  if (!/^[a-f0-9]{64}$/.test(String(hash || ""))) return null;
+  if (!existsSync(specPath(hash))) return null;
+  try {
+    return JSON.parse(readFileSync(specPath(hash), "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function recentSpecs(limit = 12) {
+  if (!existsSync(specDir)) return [];
+  return readdirSync(specDir)
+    .filter((f) => /^[a-f0-9]{64}\.json$/.test(f))
+    .map((f) => ({ file: f, mtime: statSync(join(specDir, f)).mtimeMs }))
+    .sort((a, b) => b.mtime - a.mtime)
+    .slice(0, limit)
+    .map(({ file }) => {
+      const hash = file.replace(/\.json$/, "");
+      const spec = loadSpec(hash);
+      return spec ? { hash, ...spec } : null;
+    })
+    .filter(Boolean);
+}
+
+async function probeWorker() {
+  const url = env.workerUrl;
+  try {
+    const res = await fetch(`${url}/health`, { signal: AbortSignal.timeout(2500) });
+    if (!res.ok) return { online: false, url };
+    const health = await res.json();
+    return { online: true, url, ...health };
+  } catch {
+    return { online: false, url };
+  }
+}
+
+function marketReady(res) {
+  if (market.live) return true;
+  json(res, 503, {
+    error: "the market is not configured on this server",
+    fix: "set BOSS_MARKET_CONTRACT_ID and a funded NEAR key, or run: npm run deploy:market",
+  });
+  return false;
+}
+
 
 function createJob({ brief, budget = 20, client = "you" }) {
   const id = randomUUID().slice(0, 8);
@@ -97,7 +160,6 @@ const server = createServer(async (req, res) => {
   }
 
   if (url.pathname === "/health") {
-    const chain = await treasury.snapshot();
     return json(res, 200, {
       ok: true,
       service: "boss",
@@ -106,7 +168,9 @@ const server = createServer(async (req, res) => {
         models: providersInOrder().map((p) => p.name),
         intents: Boolean(env.intentsJwt),
         treasury: env.treasuryContractId || "not-deployed",
-        chain,
+        market: env.marketContractId || "not-deployed",
+        worker: env.workerAccount || "not-configured",
+        chain: { mode: treasury.mode, contract: treasury.contractId || null, network: treasury.network },
       },
       agents: listAgents().length,
     });
@@ -250,6 +314,171 @@ const server = createServer(async (req, res) => {
     return json(res, 200, await treasury.snapshot());
   }
 
+  // ---- cross-firm market ------------------------------------------------
+
+  // Everything the market panel needs in one call: contract state, the local
+  // specs this firm published, and whether the second firm is awake.
+  if (url.pathname === "/api/market" && req.method === "GET") {
+    const snapshot = await market.snapshot();
+    return json(res, 200, {
+      ...snapshot,
+      account: market.account,
+      worker: await probeWorker(),
+      specs: recentSpecs(12),
+    });
+  }
+
+  // Publish a spec and escrow for it. The spec body is stored here and its hash
+  // goes on chain, because prose on chain costs more than the job is worth.
+  if (url.pathname === "/api/market/jobs" && req.method === "POST") {
+    if (!marketReady(res)) return;
+    try {
+      const body = JSON.parse((await readBody(req)) || "{}");
+      const brief = String(body.brief || body.task || "").trim();
+      if (!brief) return json(res, 400, { error: "brief required" });
+
+      const spec = {
+        brief,
+        capability: String(body.capability || "writing").slice(0, 40),
+        acceptance: Array.isArray(body.acceptance) ? body.acceptance.map(String).slice(0, 8) : [],
+        requires: Array.isArray(body.requires) ? body.requires.map(String).slice(0, 8) : [],
+        createdAt: new Date().toISOString(),
+        client: market.account,
+      };
+      const specText = JSON.stringify(spec);
+      const hash = saveSpec(specText);
+      const specUrl = `${env.siteUrl}/api/market/spec/${hash}`;
+
+      const depositUsd = Math.min(Math.max(Number(body.depositUsd) || 0.5, 0.01), 5);
+      const deadlineSecs = Math.min(Math.max(Number(body.deadlineSecs) || 900, 10), 60 * 60 * 24 * 30);
+
+      const opened = await market.openJob({
+        capability: spec.capability,
+        spec: specText,
+        specUrl,
+        depositUsd,
+        deadlineSecs,
+      });
+
+      return json(res, 201, {
+        ...opened,
+        job: decorate(opened.job),
+        specHash: hash,
+        specUrl,
+        spec,
+      });
+    } catch (e) {
+      return json(res, 500, { error: String(e.message || e) });
+    }
+  }
+
+  // The spec is immutable, so a worker can cache it against its hash.
+  if (url.pathname.startsWith("/api/market/spec/") && req.method === "GET") {
+    const hash = url.pathname.split("/").pop();
+    const spec = loadSpec(hash);
+    if (!spec) return json(res, 404, { error: "no spec with that hash" });
+    res.writeHead(200, {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "public, max-age=300, immutable",
+      "access-control-allow-origin": "*",
+    });
+    return res.end(JSON.stringify({ hash, ...spec }));
+  }
+
+  if (url.pathname.startsWith("/api/market/jobs/") && req.method === "GET") {
+    try {
+      const id = Number(url.pathname.split("/").pop());
+      if (!Number.isInteger(id) || id < 0) return json(res, 400, { error: "bad job id" });
+      const job = decorate(await market.getJob(id));
+      return json(res, 200, { ...job, spec: loadSpec(job.specHash) });
+    } catch (e) {
+      return json(res, 404, { error: String(e.message || e) });
+    }
+  }
+
+  // Settle a submitted job: fetch the result, check the hash, judge the work,
+  // then release or refund. The client never pays on the worker's word.
+  if (/^\/api\/market\/jobs\/\d+\/settle$/.test(url.pathname) && req.method === "POST") {
+    if (!marketReady(res)) return;
+    try {
+      const id = Number(url.pathname.split("/")[4]);
+      const job = decorate(await market.getJob(id));
+      if (job.status !== "Submitted") {
+        return json(res, 409, { error: `job is ${job.status}, not Submitted`, job });
+      }
+
+      // No spec on this server means the acceptance checks cannot be applied.
+      // Paying anyway would be paying on the worker's word, so refund instead.
+      const spec = loadSpec(job.specHash);
+      if (!spec) {
+        const refund = await market.refund(id);
+        return json(res, 200, {
+          action: "refund",
+          reason: "this server does not hold the spec for that job, so the work cannot be checked",
+          job: decorate(await market.getJob(id)),
+          tx: refund.tx,
+          url: refund.url,
+        });
+      }
+
+      let text;
+      try {
+        const fetched = await fetch(job.resultUrl, { signal: AbortSignal.timeout(20_000) });
+        if (!fetched.ok) throw new Error(`HTTP ${fetched.status}`);
+        text = await fetched.text();
+      } catch (e) {
+        const refund = await market.refund(id);
+        return json(res, 200, {
+          action: "refund",
+          reason: `result unreachable (${String(e.message || e).slice(0, 120)}) — a delivery nobody can read cannot be paid`,
+          job: decorate(await market.getJob(id)),
+          tx: refund.tx,
+          url: refund.url,
+        });
+      }
+
+      const gotHash = specHash(text);
+      if (gotHash !== job.resultHash) {
+        const refund = await market.refund(id);
+        return json(res, 200, {
+          action: "refund",
+          reason: "the bytes served do not match the hash the worker put on chain",
+          expected: job.resultHash,
+          got: gotHash,
+          job: decorate(await market.getJob(id)),
+          tx: refund.tx,
+          url: refund.url,
+        });
+      }
+
+      const verdict = await judgeDelivery(spec, text);
+      const settled = verdict.ok ? await market.release(id) : await market.refund(id);
+      return json(res, 200, {
+        action: verdict.ok ? "release" : "refund",
+        verdict,
+        deliverable: text.slice(0, 6000),
+        job: decorate(await market.getJob(id)),
+        tx: settled.tx,
+        url: settled.url,
+      });
+    } catch (e) {
+      return json(res, 500, { error: String(e.message || e) });
+    }
+  }
+
+  // Cancel an open job, or take back a submitted one after its deadline.
+  if (/^\/api\/market\/jobs\/\d+\/refund$/.test(url.pathname) && req.method === "POST") {
+    if (!marketReady(res)) return;
+    try {
+      const id = Number(url.pathname.split("/")[4]);
+      const job = decorate(await market.getJob(id));
+      const refund = await market.refund(id);
+      return json(res, 200, { action: "refund", job: decorate(await market.getJob(id)), tx: refund.tx, url: refund.url, before: job.status });
+    } catch (e) {
+      return json(res, 400, { error: String(e.message || e) });
+    }
+  }
+
   // ---- static web app ----
   const file = url.pathname === "/" ? "index.html" : url.pathname.slice(1);
   const full = join(webRoot, file);
@@ -271,11 +500,13 @@ const server = createServer(async (req, res) => {
   res.end("not found");
 });
 
-server.listen(env.port, () => {
+server.listen(env.port, "127.0.0.1", () => {
   console.log(`BOSS listening on http://localhost:${env.port}`);
   const chain = providersInOrder().map((p) => p.name).join(" → ") || "no model configured";
   console.log(`  models: ${chain}`);
   console.log(`  treasury: ${treasury.live ? `${treasury.contractId} on ${treasury.network}` : "local mirror (no key/contract)"}`);
+  console.log(`  market:   ${market.live ? `${market.contractId} on ${market.network}` : "not configured — npm run deploy:market"}`);
+  console.log(`  worker:   ${env.workerAccount || "not configured — npm run worker"}`);
   if (treasury.live) {
     treasury
       .ensureAgents(listAgents().map((a) => a.id))
