@@ -37,14 +37,15 @@ the surplus back and leaves a 1 NEAR reserve.
 
 1. Push the repo to GitHub, then **New → Blueprint** and select it.
 2. `render.yaml` creates one web service with a 1 GB disk.
-3. Fill the `sync: false` secrets from `.env` in the dashboard. Do not paste them
-   into the blueprint.
-4. Set `SITE_URL` to the service URL Render gave you
-   (`https://<name>.onrender.com`) and redeploy. Spec links and the worker's
-   `result_url` both use it. On Render the platform's `RENDER_EXTERNAL_URL` is
-   picked up when `SITE_URL` is unset, so this is a belt-and-braces step rather
-   than a required one — but set it, and check the first job's `result_url`.
-5. Check `https://<name>.onrender.com/health`.
+3. Fill the `sync: false` secrets from `.env` in the dashboard: `NEAR_ACCOUNT`,
+   `NEAR_PRIVATE_KEY`, `BOSS_TREASURY_CONTRACT_ID`, `BOSS_MARKET_CONTRACT_ID`,
+   `BOSS_WORKER_ACCOUNT`, `BOSS_WORKER_KEY`, `GROQ_API_KEY`, and
+   `NEAR_AI_API_KEY` if you have one. Do not paste them into the blueprint.
+4. Open `https://<name>.onrender.com/health`. The blueprint does not ask for
+   `SITE_URL`: Render sets `RENDER_EXTERNAL_URL`, and the app uses it for spec
+   links and the worker's `result_url`. Set `SITE_URL` yourself only for a
+   custom domain, then redeploy.
+5. Run one demo job and confirm its `result_url` is on the public host.
 
 The disk is what keeps the daily demo counters across deploys. Without it the
 counters reset, which only lowers what is allowed. Render's free plan has no

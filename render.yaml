@@ -38,9 +38,9 @@ services:
         value: https://test.rpc.fastnear.com
       - key: NEAR_USD_RATE
         value: "10"
-      # Public URL of this service. The worker advertises it in result_url.
-      - key: SITE_URL
-        sync: false
+      # Public URL of this service. Not set here: Render provides
+      # RENDER_EXTERNAL_URL, and the app falls back to it. Set SITE_URL only to
+      # override it (a custom domain, or a host that does not set that var).
       - key: NEAR_ACCOUNT
         sync: false
       - key: NEAR_PRIVATE_KEY
@@ -60,4 +60,4 @@ services:
       - key: NEAR_AI_API_KEY
         sync: false
       - key: NEAR_AI_MODEL
-        sync: false
+        value: z-ai/glm-5.3-flash
