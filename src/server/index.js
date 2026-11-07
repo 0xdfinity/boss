@@ -276,6 +276,9 @@ const server = createServer(async (req, res) => {
         treasury: env.treasuryContractId || "not-deployed",
         market: env.marketContractId || "not-deployed",
         worker: env.workerAccount || "not-configured",
+        // Configured is not running: the embedded child can die on its own.
+        workerEmbedded: EMBED_WORKER,
+        workerChildAlive: EMBED_WORKER ? workerChild !== null : null,
         chain: { mode: treasury.mode, contract: treasury.contractId || null, network: treasury.network },
       },
       agents: listAgents().length,
@@ -675,7 +678,8 @@ const server = createServer(async (req, res) => {
 // account and key; only its listener is internal.
 let workerChild = null;
 if (EMBED_WORKER) {
-  workerChild = spawn(process.execPath, ["scripts/firm_worker.mjs"], {
+  workerChild = spawn(process.execPath, [join(root, "scripts", "firm_worker.mjs")], {
+    cwd: root,
     stdio: "inherit",
     env: {
       ...process.env,
