@@ -1,7 +1,7 @@
 # One image, two roles: the firm (`node src/server/index.js`) and the second
 # firm (`node scripts/firm_worker.mjs`). No build step, no runtime dependencies.
 
-FROM node:22-alpine
+FROM node:22-bookworm-slim
 
 WORKDIR /app
 ENV NODE_ENV=production
