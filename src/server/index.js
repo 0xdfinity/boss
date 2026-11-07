@@ -17,6 +17,7 @@ import { readFileSync, existsSync, mkdirSync, writeFileSync, readdirSync, statSy
 import { join, dirname, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
+import { spawn } from "node:child_process";
 import { runJob } from "../firm/run.js";
 import { listAgents, registerAgent } from "../firm/agents.js";
 import { treasury } from "../chain/treasury.js";
@@ -49,6 +50,41 @@ function json(res, code, body, headers = {}) {
     ...headers,
   });
   res.end(JSON.stringify(body));
+}
+
+/** The second firm can run inside this container (BOSS_EMBED_WORKER=1). Its
+ * listener stays on loopback; only the deliverable path is reachable from
+ * outside, so a result URL from the worker resolves on the public origin.
+ */
+const EMBED_WORKER = process.env.BOSS_EMBED_WORKER === "1";
+// The worker keeps its own port, not the platform's PORT, so it can share the
+// container with the firm.
+const WORKER_PORT = Number(process.env.BOSS_WORKER_PORT || 8795);
+if (EMBED_WORKER) {
+  env.workerPort = WORKER_PORT;
+  env.workerUrl = `http://127.0.0.1:${WORKER_PORT}`;
+}
+
+/**
+ * Forward /result/<id> to the embedded worker byte-for-byte. The client checks
+ * the SHA-256 of these bytes, so the body must not be re-encoded.
+ */
+async function proxyWorkerResult(res, pathname) {
+  try {
+    const upstream = await fetch(`http://127.0.0.1:${WORKER_PORT}${pathname}`, {
+      signal: AbortSignal.timeout(20_000),
+    });
+    const body = Buffer.from(await upstream.arrayBuffer());
+    res.writeHead(upstream.status, {
+      "content-type": upstream.headers.get("content-type") || "text/plain; charset=utf-8",
+      "cache-control": "no-store",
+      "access-control-allow-origin": "*",
+      "content-length": body.length,
+    });
+    res.end(body);
+  } catch (e) {
+    json(res, 502, { error: `the second firm is not answering (${String(e.message || e).slice(0, 120)})` });
+  }
 }
 
 /** 429 with the same shape every guarded route uses. */
@@ -219,6 +255,12 @@ const server = createServer(async (req, res) => {
       "access-control-allow-headers": "content-type",
     });
     return res.end();
+  }
+
+  // The embedded second firm listens on loopback; expose only its deliverable
+  // path, and only for a numeric job id.
+  if (EMBED_WORKER && /^\/result\/\d+$/.test(url.pathname)) {
+    return proxyWorkerResult(res, url.pathname);
   }
 
   if (url.pathname === "/health") {
@@ -626,6 +668,36 @@ const server = createServer(async (req, res) => {
   res.writeHead(404, { "content-type": "text/plain" });
   res.end("not found");
 });
+
+// One container, two firms. The second firm is a separate process with its own
+// account and key; only its listener is internal.
+let workerChild = null;
+if (EMBED_WORKER) {
+  workerChild = spawn(process.execPath, ["scripts/firm_worker.mjs"], {
+    stdio: "inherit",
+    env: {
+      ...process.env,
+      BOSS_BIND: "127.0.0.1",
+      BOSS_WORKER_PORT: String(WORKER_PORT),
+      // The result URL must be the public origin, because the client fetches it.
+      BOSS_WORKER_URL: process.env.BOSS_WORKER_URL || env.siteUrl,
+    },
+  });
+  workerChild.on("exit", (code, signal) => {
+    console.error(`[worker] child exited (${signal || code}); new jobs will have no worker`);
+    workerChild = null;
+  });
+  for (const signal of ["SIGINT", "SIGTERM"]) {
+    process.on(signal, () => {
+      try {
+        workerChild?.kill(signal);
+      } catch {
+        /* already gone */
+      }
+      process.exit(0);
+    });
+  }
+}
 
 server.listen(env.port, env.bind, () => {
   console.log(`BOSS listening on http://${env.bind}:${env.port}`);
