@@ -31,6 +31,7 @@ export class FirmWorker {
     this.account = opts.account ?? env.workerAccount;
     this.key = opts.key ?? env.workerKey;
     this.port = Number(opts.port ?? env.workerPort);
+    this.bind = opts.bind ?? env.bind;
     this.url = String(opts.url ?? env.workerUrl).replace(/\/$/, "");
     this.contractId = opts.contractId ?? env.marketContractId;
     this.capabilities = opts.capabilities ?? DEFAULT_CAPABILITIES;
@@ -165,14 +166,14 @@ export class FirmWorker {
     });
 
     this.server.on("error", (e) => {
-      console.error(`[worker] cannot listen on 127.0.0.1:${this.port} — ${e.message}`);
+      console.error(`[worker] cannot listen on ${this.bind}:${this.port} — ${e.message}`);
       if (e.code === "EADDRINUSE") {
         console.error(`[worker] change BOSS_WORKER_PORT and retry`);
         process.exit(1);
       }
     });
 
-    this.server.listen(this.port, "127.0.0.1", () => {
+    this.server.listen(this.port, this.bind, () => {
       this.record(`listening on ${this.url} · ${this.capabilities.join(", ")} · tools: ${this.tools.join(", ") || "none"}`);
     });
 

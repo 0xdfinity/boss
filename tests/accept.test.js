@@ -5,6 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { checkRules } from "../src/firm/accept.js";
+import { normaliseReasons } from "../src/firm/judge.js";
 
 const spec = (brief, acceptance = []) => ({ brief, acceptance });
 
@@ -49,4 +50,17 @@ test("a word cap is a ceiling, not a target to pad to", () => {
   assert.equal(checkRules(spec(brief), short).ok, true);
   const padded = Array.from({ length: 90 }, () => "word").join(" ");
   assert.equal(checkRules(spec(brief), padded).ok, false);
+});
+
+test("a model that packs every reason into one string is split back apart", () => {
+  // Seen from a Groq model: one array element containing the separators.
+  const packed = ['Delivers five taglines","Includes a strongest pick","Stays under the limit'];
+  assert.deepEqual(normaliseReasons(packed), [
+    "Delivers five taglines",
+    "Includes a strongest pick",
+    "Stays under the limit",
+  ]);
+  assert.deepEqual(normaliseReasons(["one", "two", "three", "four"]), ["one", "two", "three"]);
+  assert.deepEqual(normaliseReasons(undefined), []);
+  assert.deepEqual(normaliseReasons('["only one"]'), ["only one"]);
 });

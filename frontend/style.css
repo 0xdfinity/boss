@@ -491,6 +491,92 @@ body.chatting .thread { display: flex; }
 
 .market-refresh:hover { color: var(--ink); border-color: var(--ink); }
 
+/* ---------- wallet ---------- */
+.pill.wallet {
+  border-color: var(--line);
+  color: var(--dim);
+}
+
+.pill.wallet:hover { color: var(--ink); border-color: var(--ink); }
+
+.pill.wallet.on {
+  color: var(--ink);
+  border-color: var(--accent, #00a86b);
+  background: #f2fbf6;
+}
+
+.wallet-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 0 8px;
+}
+
+.wallet-connect {
+  border: 1px solid var(--ink);
+  background: #fff;
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+}
+
+.wallet-connect:hover:not(:disabled) { background: var(--ink); color: var(--bg); }
+.wallet-connect:disabled { opacity: .5; cursor: default; }
+
+.wallet-state {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  color: var(--dim);
+  overflow-wrap: anywhere;
+}
+
+.wallet-note {
+  margin: 0 0 10px;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--dim);
+}
+
+.wallet-note b { color: var(--ink); font-weight: 600; }
+.wallet-note code { font-size: 10px; background: #f0eee8; padding: 1px 4px; border-radius: 4px; }
+
+.limits-line {
+  margin: 0 0 12px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  color: #8a887f;
+}
+
+.limits-line[data-state="none"] { color: var(--warn); }
+
+.market-run.ghost {
+  background: #fff;
+  color: var(--ink);
+}
+
+.market-run.ghost:hover:not(:disabled) { background: var(--ink); color: var(--bg); }
+
+.market-deliverable {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border-left: 2px solid var(--line);
+  background: #fff;
+  color: #3d3b35;
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
 .market-log {
   border: 1px solid var(--line);
   border-radius: 13px;

@@ -74,6 +74,31 @@ What the contract enforces today:
 
 The `arbiter` slot exists in state from day one. There is no arbiter panel yet: a panel is real design work, and a timeout is the honest version today.
 
+## The client is a wallet
+
+`npm run wallet:check` creates a throwaway testnet account with the two keys a
+real visitor ends up with — a full-access key standing in for the wallet, and a
+function-call key scoped to the market — then runs the whole client side with
+the module the browser loads:
+
+| Step | Transaction |
+|---|---|
+| account created with both keys | [CHdYrYSN…](https://testnet.nearblocks.io/txns/CHdYrYSNNhznDDVeBy8X75eeGhHfmWRDkmTrzDByKSpa) |
+| `open_job`, 0.05 NEAR escrow, wallet key | [J7P8sQpV…](https://testnet.nearblocks.io/txns/J7P8sQpV7u8HUrthKUX33n64GYoFbUfo8D8tUKrUWETG) |
+| `release` after an 88/100 verdict, scoped key | [FyqEy8C7…](https://testnet.nearblocks.io/txns/FyqEy8C7TBybAHQo6PUyzLfoxCqTdkDWf8oodCHdEVAU) |
+
+The script also asserts the chain rule the UI is built around: the scoped key is
+refused when the call carries a deposit. The popup itself (`/login`, `/sign`)
+is a browser flow a script cannot drive; what is proven is that the
+transactions the page hands it are accepted.
+
+## Host it
+
+The repo ships a `Dockerfile` and a Render blueprint. The worker must be a
+public service, because the client fetches the deliverable and checks its hash
+before releasing escrow. Steps, environment, and a post-deploy checklist are in
+[`docs/DEPLOY.md`](docs/DEPLOY.md).
+
 ## Tech Stack
 
 | Layer | Technology | Role |
@@ -132,11 +157,29 @@ If the hash does not match, or the result cannot be fetched, the client refunds.
 ```console
 # from an existing checkout of this repository
 npm install         # zero runtime dependencies
-npm test            # 30 tests: policy caps, plan rules, firm flow, acceptance, RPC failover, fallbacks
+npm test            # 49 tests: policy caps, plan rules, firm flow, acceptance, RPC failover, public limits
 npm run server      # http://127.0.0.1:8787
 ```
 
-Open the page, type a brief, press send. With no model key the firm refuses the first stage and pays nothing — it does not guess at the work — and the feed says which key to set.
+Open the page, type a brief, press send. With no model key the firm refuses the
+first stage and pays nothing — it does not guess at the work — and the feed says
+which key to set.
+
+### Two ways in
+
+Model keys are server-side infrastructure. Nobody who visits the site is asked
+for one, and nobody has to copy-paste a key to see it work.
+
+| Path | What the visitor does | Who pays |
+|---|---|---|
+| **demo job** | presses one button, no wallet | the operator, metered at 5 jobs per address per day |
+| **run as your firm** | connects a testnet wallet, signs the escrow | the visitor, with their own testnet NEAR |
+
+The second path is the point: the wallet is the client. `open_job` carries a
+deposit, and NEAR forbids deposits on function-call keys, so the wallet itself
+signs that one transaction. The site holds a function-call key scoped to
+`open_job`, `release`, and `refund` and uses it only for the zero-deposit
+settlement. The server sees signed transactions, never a secret.
 
 **Chain setup (only needed for real payments).** Without a wallet the treasury runs in `mirror` mode: the caps and verdicts are real, no transaction is sent. For settlement on testnet, put a funded testnet account and its full-access key in `.env`:
 
@@ -201,6 +244,14 @@ npm run deploy:market
 | `NEAR_USD_RATE` | no | USD per NEAR for transfers; default `10` |
 | `SITE_URL` | no | default `http://127.0.0.1:8787`; where specs are published |
 | `PORT` | no | default `8787` |
+| `BOSS_BIND` | no | default `127.0.0.1`; set `0.0.0.0` in a container |
+| `BOSS_TRUST_PROXY` | no | `1` behind a proxy, so per-IP limits read `x-forwarded-for` |
+| `BOSS_JOBS_PER_IP_DAY` | no | demo jobs one address may start; default `5` |
+| `BOSS_JOBS_PER_DAY` | no | hard daily ceiling on the operator's wallet; default `60` |
+| `BOSS_CONCURRENT_JOBS` | no | jobs running at once; default `2` |
+| `BOSS_MAX_JOB_BUDGET` | no | USD cap per job, server-side; default `8` |
+| `BOSS_SPECS_PER_IP_DAY` | no | spec writes per address; default `20` |
+| `BOSS_LIMITS_FILE` | no | `data/limits.json`; put it on the persistent disk |
 
 ## Project Structure
 
@@ -211,8 +262,11 @@ src/chain/    dependency-free NEAR client, treasury adapter, market adapter
 src/ai/       model chain (NEAR AI → Groq → none)
 src/server/   HTTP API, SSE stream, market routes
 contracts/    boss_treasury and boss_market (Rust)
-scripts/      testnet deploys, market demo, worker daemon, dry run
+scripts/      testnet deploys, market demo, worker daemon, dry run, wallet proof
 tests/        node --test suites
+docs/         deploy guide, agent-economy notes, screenshots
+Dockerfile    one image for both roles
+render.yaml   two-service blueprint (firm + worker)
 ```
 
 ## License

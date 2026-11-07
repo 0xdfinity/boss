@@ -2,6 +2,19 @@
 // One composer, one thread. The interesting part is what the stream shows:
 // who was hired, what the judge scored, what the treasury actually paid.
 import { startSwarm } from "./swarm.js";
+import {
+  bridgePopup,
+  connect as connectWallet,
+  disconnect as forgetWallet,
+  loadWallet,
+  resume as resumeWallet,
+  runAsClient,
+} from "./wallet.js";
+import { formatNear } from "./near-lite.js";
+
+// The wallet popup lands back on this page; if it does, hand the account id to
+// the tab that opened it and close before any UI is built.
+bridgePopup();
 
 const body = document.body;
 const thread = document.querySelector("#thread");
@@ -96,6 +109,8 @@ add("Send a brief. The model proposes, the contract decides. $2.00 per agent, $2
 setSpent(0);
 
 // ---------- health ----------
+let marketContract = "";
+let nearUsdRate = 10;
 try {
   const res = await fetch("/health");
   const health = await res.json();
@@ -104,7 +119,7 @@ try {
   const live = models.length > 0;
   spentPill.dataset.live = live ? "live" : "mirror";
   spentPill.title = [
-    models.length ? `models: ${models.join(" → ")}` : "no model key — set GROQ_API_KEY",
+    models.length ? `models: ${models.join(" → ")}` : "no model key — the firm refuses the first stage",
     chain.mode === "near" ? `treasury: ${chain.contract} on ${chain.network}` : "treasury: local mirror",
   ].join(" · ");
 } catch {
@@ -185,6 +200,8 @@ async function loadMarket() {
     const res = await fetch("/api/market");
     const m = await res.json();
     mktContract.textContent = m.contract || "not configured";
+    marketContract = m.contract || "";
+    nearUsdRate = Number(m.rate) > 0 ? Number(m.rate) : 10;
     mktWorker.textContent = m.worker?.online
       ? `${m.worker.account} · ${(m.worker.capabilities || []).join(", ")}`
       : "offline — run npm run worker";
@@ -275,7 +292,7 @@ async function runMarketDemo() {
     mlog(`job ${b.jobId} — ${settledB.action.toUpperCase()} · ${settledB.verdict?.reasons?.[0] || settledB.reason || "rejected"}`, settledB.action === "refund" ? "good" : "bad", settledB.url);
 
     mlog("", "");
-    await loadMarket();
+    await Promise.all([loadMarket(), paintLimits()]);
     mlog(
       settledB.action === "refund"
         ? "the refusal held: the escrow went back. money that did not move is the proof."
@@ -287,13 +304,14 @@ async function runMarketDemo() {
   } finally {
     marketRunning = false;
     marketDemo.disabled = false;
-    marketDemo.textContent = "run a live job on testnet";
+    marketDemo.textContent = "run a demo job (no wallet)";
   }
 }
 
 marketBtn.addEventListener("click", async () => {
   marketOverlay.hidden = false;
   await loadMarket();
+  await paintLimits();
 });
 closeMarket.addEventListener("click", () => (marketOverlay.hidden = true));
 marketOverlay.addEventListener("click", (e) => {
@@ -301,6 +319,152 @@ marketOverlay.addEventListener("click", (e) => {
 });
 marketRefresh.addEventListener("click", loadMarket);
 marketDemo.addEventListener("click", runMarketDemo);
+
+// ---------- wallet: the client is whoever holds the key ----------
+const walletBtn = document.querySelector("#walletBtn");
+const walletConnect = document.querySelector("#walletConnect");
+const walletState = document.querySelector("#walletState");
+const marketOwn = document.querySelector("#marketOwn");
+let wallet = null;
+let walletBusy = false;
+
+function paintWallet() {
+  if (wallet) {
+    walletBtn.textContent = wallet.accountId.replace(/\.testnet$/, "");
+    walletBtn.classList.add("on");
+    walletBtn.title = `connected · ${wallet.accountId} · ${formatNear(wallet.balance || 0)} NEAR`;
+    walletConnect.textContent = "disconnect";
+    walletState.textContent = `${wallet.accountId} · ${formatNear(wallet.balance || 0)} NEAR`;
+    marketOwn.disabled = false;
+  } else {
+    walletBtn.textContent = "connect wallet";
+    walletBtn.classList.remove("on");
+    walletBtn.title = "connect a testnet wallet as the client";
+    walletConnect.textContent = "connect a testnet wallet";
+    walletState.textContent = "not connected";
+    marketOwn.disabled = true;
+  }
+}
+
+async function refreshWallet() {
+  const stored = loadWallet();
+  if (!stored) {
+    wallet = null;
+    return paintWallet();
+  }
+  try {
+    const resumed = await resumeWallet(stored);
+    wallet = resumed;
+    if (wallet) wallet.balance = await wallet.near.balance();
+  } catch {
+    wallet = null;
+  }
+  paintWallet();
+}
+
+async function connectNow() {
+  if (walletBusy) return;
+  if (!marketContract) {
+    mlog("the market is not configured on this server", "bad");
+    return;
+  }
+  walletBusy = true;
+  walletConnect.disabled = true;
+  walletConnect.textContent = "waiting for the wallet…";
+  try {
+    wallet = await connectWallet(marketContract);
+    paintWallet();
+    mlog(`connected as ${wallet.accountId} · ${formatNear(wallet.balance)} NEAR · key scoped to the market contract`, "good");
+  } catch (e) {
+    mlog(`wallet: ${e.message}`, "bad");
+    paintWallet();
+  } finally {
+    walletBusy = false;
+    walletConnect.disabled = false;
+  }
+}
+
+walletBtn.addEventListener("click", async () => {
+  marketOverlay.hidden = false;
+  await loadMarket();
+  if (!wallet) connectNow();
+});
+
+walletConnect.addEventListener("click", async () => {
+  if (wallet) {
+    forgetWallet();
+    wallet = null;
+    paintWallet();
+    mlog("wallet disconnected — the key is gone from this browser", "dim");
+    return;
+  }
+  await connectNow();
+});
+
+async function runOwnJob() {
+  if (!wallet || walletBusy) return;
+  walletBusy = true;
+  marketOwn.disabled = true;
+  marketOwn.textContent = "signing…";
+  marketLog.replaceChildren();
+  const brief =
+    (taskEl.value || "").trim() ||
+    "Write exactly 5 numbered taglines for a coffee subscription that ships a new single-origin roast every month. " +
+      "Then name the strongest one and give a one-sentence reason. Keep it under 120 words.";
+
+  try {
+    mlog(`you are the client · ${wallet.accountId}`, "dim");
+    const out = await runAsClient({
+      wallet,
+      brief,
+      capability: "writing",
+      acceptance: ["answers every part of the brief", "under 200 words"],
+      rate: nearUsdRate,
+      onLog: mlog,
+    });
+    await Promise.all([loadMarket(), paintLimits()]);
+    mlog(
+      out.action === "release"
+        ? "paid from your escrow to the worker — your key signed it, not ours."
+        : "your escrow came back. money that did not move is the proof.",
+      "good"
+    );
+    if (out.deliverable) {
+      const pre = document.createElement("pre");
+      pre.className = "market-deliverable";
+      pre.textContent = out.deliverable.slice(0, 1400);
+      marketLog.append(pre);
+      marketLog.scrollTop = marketLog.scrollHeight;
+    }
+  } catch (e) {
+    mlog(`stopped: ${e.message}`, "bad");
+  } finally {
+    walletBusy = false;
+    marketOwn.disabled = false;
+    marketOwn.textContent = "run as your firm";
+  }
+}
+
+marketOwn.addEventListener("click", runOwnJob);
+refreshWallet();
+
+// ---------- what is left of the public allowance ----------
+const limitsLine = document.querySelector("#limitsLine");
+
+async function paintLimits() {
+  try {
+    const res = await fetch("/api/limits");
+    const l = await res.json();
+    if (!res.ok) throw new Error(l.error || `server ${res.status}`);
+    limitsLine.textContent =
+      `${l.perIp.left} of ${l.perIp.cap} demo jobs left for this address today · ` +
+      `${l.global.used}/${l.global.cap} across the site · max ${money(l.maxBudget)} per job`;
+    limitsLine.dataset.state = l.perIp.left === 0 ? "none" : "ok";
+  } catch {
+    limitsLine.textContent = "";
+  }
+}
+paintLimits();
 
 window.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
@@ -363,6 +527,7 @@ form.addEventListener("submit", async (e) => {
     add(`The firm stopped: ${err.message}. Nothing else left the treasury.`, "bad");
   } finally {
     sendBtn.disabled = false;
+    paintLimits();
   }
 
   function render(ev) {

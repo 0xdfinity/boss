@@ -1,0 +1,95 @@
+# Render blueprint: the firm and the second firm as two web services.
+#
+#   firm    https://boss-xxxx.onrender.com        (the site judges open)
+#   worker  https://boss-worker-xxxx.onrender.com (serves /result/:id)
+#
+# The worker is a web service on purpose: the client fetches the deliverable
+# from a public URL and checks its hash before releasing escrow. A private
+# background worker could not be reached.
+#
+# Secrets are marked `sync: false`, so Render prompts for them instead of
+# storing them in this file. The disk keeps the daily demo counters across
+# deploys; without it they reset, which can only lower what is allowed.
+
+services:
+  - type: web
+    name: boss
+    runtime: docker
+    plan: starter
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeploy: true
+    disk:
+      name: boss-data
+      mountPath: /app/data
+      sizeGB: 1
+    envVars:
+      - key: BOSS_BIND
+        value: 0.0.0.0
+      - key: BOSS_TRUST_PROXY
+        value: "1"
+      - key: NEAR_NETWORK
+        value: testnet
+      - key: NEAR_RPC_URL
+        value: https://test.rpc.fastnear.com
+      - key: NEAR_USD_RATE
+        value: "10"
+      - key: SITE_URL
+        sync: false
+      - key: NEAR_ACCOUNT
+        sync: false
+      - key: NEAR_PRIVATE_KEY
+        sync: false
+      - key: BOSS_TREASURY_CONTRACT_ID
+        sync: false
+      - key: BOSS_MARKET_CONTRACT_ID
+        sync: false
+      - key: BOSS_WORKER_ACCOUNT
+        sync: false
+      - key: BOSS_WORKER_KEY
+        sync: false
+      - key: BOSS_WORKER_URL
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-120b
+      - key: NEAR_AI_API_KEY
+        sync: false
+      - key: NEAR_AI_MODEL
+        sync: false
+
+  - type: web
+    name: boss-worker
+    runtime: docker
+    plan: starter
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    dockerCommand: node scripts/firm_worker.mjs
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: BOSS_BIND
+        value: 0.0.0.0
+      - key: NEAR_NETWORK
+        value: testnet
+      - key: NEAR_RPC_URL
+        value: https://test.rpc.fastnear.com
+      - key: BOSS_MARKET_CONTRACT_ID
+        sync: false
+      - key: BOSS_WORKER_ACCOUNT
+        sync: false
+      - key: BOSS_WORKER_KEY
+        sync: false
+      # Public URL of this service, used in the result_url it puts on chain.
+      - key: BOSS_WORKER_URL
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-120b
+      - key: NEAR_AI_API_KEY
+        sync: false
+      - key: NEAR_AI_MODEL
+        sync: false

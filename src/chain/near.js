@@ -179,6 +179,25 @@ function addFullAccessKey(w, pub, nonce) {
   w.u8(1); // AccessKeyPermission::FullAccess (FunctionCall is 0)
 }
 
+// The permission a wallet grants when it adds a key for one contract: only
+// these methods, only this receiver. `allowance === null` means the wallet's
+// "no separate budget" grant, which still cannot touch any other contract.
+function addFunctionCallKey(w, pub, nonce, receiverId, methodNames, allowance) {
+  w.u8(5);
+  publicKeyBytes(w, pub);
+  w.u64(nonce);
+  w.u8(0); // AccessKeyPermission::FunctionCall
+  if (allowance === null || allowance === undefined) {
+    w.u8(0);
+  } else {
+    w.u8(1);
+    w.u128(allowance);
+  }
+  w.string(receiverId);
+  w.u32(methodNames.length);
+  for (const method of methodNames) w.string(method);
+}
+
 export function encodeTransaction({ signerId, publicKey, nonce, receiverId, blockHash, actions }) {
   const w = new Writer();
   borshString(w, signerId);
@@ -203,6 +222,9 @@ export function encodeTransaction({ signerId, publicKey, nonce, receiverId, bloc
         break;
       case "addFullAccessKey":
         addFullAccessKey(w, a.publicKey, a.nonce ?? 0n);
+        break;
+      case "addFunctionCallKey":
+        addFunctionCallKey(w, a.publicKey, a.nonce ?? 0n, a.receiverId, a.methodNames || [], a.allowance ?? null);
         break;
       default:
         throw new Error(`unknown action ${a.type}`);
@@ -273,6 +295,12 @@ export class Near {
       const raw = body.error?.data ?? body.error?.cause?.info ?? "";
       const data = typeof raw === "string" ? raw : JSON.stringify(raw);
       throw new Error(`${method}: ${msg} ${data.slice(0, 300)}`.trim());
+    }
+    // A `query` can answer 200 with the failure inside the result, e.g. a key
+    // that is not on chain yet. Returning that object as if it were data is how
+    // a missing key turns into a confusing "undefined" three layers up.
+    if (body.result && typeof body.result.error === "string") {
+      throw new Error(`${method}: ${body.result.error}`);
     }
     return body.result;
   }
@@ -403,15 +431,29 @@ export class Near {
     });
   }
 
-  createAccount({ newAccountId, publicKey, initialBalance = 5_000_000_000_000_000_000_000_000n }) {
-    return this.signAndSend({
-      receiverId: newAccountId,
-      actions: [
-        { type: "createAccount" },
-        { type: "transfer", deposit: initialBalance },
-        { type: "addFullAccessKey", publicKey },
-      ],
-    });
+  createAccount({ newAccountId, publicKey, initialBalance = 5_000_000_000_000_000_000_000_000n, functionCall = null, extraKeys = [] }) {
+    const actions = [
+      { type: "createAccount" },
+      { type: "transfer", deposit: initialBalance },
+    ];
+    // A test client only needs the keys the browser would have: a full-access
+    // key standing in for the wallet itself (it signs deposits) and a
+    // function-call key scoped to one contract (it settles without one).
+    const addKey = (key) => {
+      if (!key?.publicKey) throw new Error("addKey needs a publicKey");
+      if (!key.functionCall) return actions.push({ type: "addFullAccessKey", publicKey: key.publicKey });
+      actions.push({
+        type: "addFunctionCallKey",
+        publicKey: key.publicKey,
+        nonce: 0n,
+        receiverId: key.functionCall.receiverId,
+        methodNames: key.functionCall.methodNames || [],
+        allowance: key.functionCall.allowance ?? null,
+      });
+    };
+    addKey(functionCall ? { publicKey, functionCall } : { publicKey });
+    for (const key of extraKeys) addKey(key);
+    return this.signAndSend({ receiverId: newAccountId, actions });
   }
 }
 

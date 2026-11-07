@@ -25,6 +25,7 @@ import { judgeDelivery } from "../firm/accept.js";
 import { providersInOrder } from "../ai/model.js";
 import { BOSS_POLICY } from "../security/policies.js";
 import { env } from "../config/env.js";
+import { limits, clientIp } from "./limits.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const webRoot = join(root, "frontend");
@@ -40,13 +41,24 @@ const MIME = {
   ".ico": "image/x-icon",
 };
 
-function json(res, code, body) {
+function json(res, code, body, headers = {}) {
   res.writeHead(code, {
     "content-type": "application/json",
     "cache-control": "no-store",
     "access-control-allow-origin": "*",
+    ...headers,
   });
   res.end(JSON.stringify(body));
+}
+
+/** 429 with the same shape every guarded route uses. */
+function tooMany(res, gate) {
+  return json(
+    res,
+    429,
+    { error: gate.reason, code: gate.code, retryAfter: gate.retryAfter },
+    { "retry-after": String(gate.retryAfter) }
+  );
 }
 
 function readBody(req) {
@@ -99,6 +111,56 @@ function recentSpecs(limit = 12) {
       return spec ? { hash, ...spec } : null;
     })
     .filter(Boolean);
+}
+
+/**
+ * Read a submitted job, check the bytes against the on-chain hash, and judge
+ * them. Writes nothing: the caller decides who signs the settlement, which is
+ * what lets a browser client settle with its own key.
+ */
+async function inspectJob(id) {
+  const job = decorate(await market.getJob(id));
+  if (job.status !== "Submitted") {
+    return { action: null, job, reason: `job is ${job.status}, not Submitted` };
+  }
+
+  // No spec on this server means the acceptance checks cannot be applied.
+  // Paying anyway would be paying on the worker's word, so refund instead.
+  const spec = loadSpec(job.specHash);
+  if (!spec) {
+    return {
+      action: "refund",
+      reason: "this server does not hold the spec for that job, so the work cannot be checked",
+      job,
+    };
+  }
+
+  let text;
+  try {
+    const fetched = await fetch(job.resultUrl, { signal: AbortSignal.timeout(20_000) });
+    if (!fetched.ok) throw new Error(`HTTP ${fetched.status}`);
+    text = await fetched.text();
+  } catch (e) {
+    return {
+      action: "refund",
+      reason: `result unreachable (${String(e.message || e).slice(0, 120)}) — a delivery nobody can read cannot be paid`,
+      job,
+    };
+  }
+
+  const gotHash = specHash(text);
+  if (gotHash !== job.resultHash) {
+    return {
+      action: "refund",
+      reason: "the bytes served do not match the hash the worker put on chain",
+      expected: job.resultHash,
+      got: gotHash,
+      job,
+    };
+  }
+
+  const verdict = await judgeDelivery(spec, text);
+  return { action: verdict.ok ? "release" : "refund", verdict, deliverable: text.slice(0, 6000), job };
 }
 
 async function probeWorker() {
@@ -176,11 +238,22 @@ const server = createServer(async (req, res) => {
     });
   }
 
+  // ---- public demo limits ----------------------------------------------
+  // The UI shows these before someone presses send, and they are the numbers
+  // that keep a hosted instance from draining the operator's key and wallet.
+  if (url.pathname === "/api/limits" && req.method === "GET") {
+    return json(res, 200, { ok: true, ...limits.snapshot(clientIp(req)) });
+  }
+
   // ---- run a job, streamed (the chat UI) ----
   if (url.pathname === "/api/mission/stream" && req.method === "GET") {
     const brief = (url.searchParams.get("task") || "").trim();
-    const budget = Number(url.searchParams.get("budget") || 20);
+    const budget = limits.clampBudget(url.searchParams.get("budget"));
     if (!brief) return json(res, 400, { error: "task required" });
+    if (brief.length > 1200) return json(res, 400, { error: "brief is too long (1200 characters max)" });
+
+    const gate = limits.begin(clientIp(req));
+    if (!gate.ok) return tooMany(res, gate);
 
     res.writeHead(200, {
       "content-type": "text/event-stream; charset=utf-8",
@@ -194,37 +267,61 @@ const server = createServer(async (req, res) => {
     try {
       const result = await runJob({ brief, budget, paceMs: 40, onEvent: send });
       send({ type: "job.result", ...result });
+      send({ type: "limits", ...limits.snapshot(clientIp(req)) });
     } catch (e) {
       send({ type: "mission.error", error: String(e.message || e) });
+    } finally {
+      gate.release();
     }
     return res.end();
   }
 
   // ---- run a job, one shot ----
   if (url.pathname === "/api/mission" && req.method === "POST") {
+    let body;
     try {
-      const { task, brief, budget } = JSON.parse((await readBody(req)) || "{}");
-      const text = (brief || task || "").trim();
-      if (!text) return json(res, 400, { error: "brief required" });
+      body = JSON.parse((await readBody(req)) || "{}");
+    } catch {
+      return json(res, 400, { error: "body must be JSON" });
+    }
+    const text = String(body.brief || body.task || "").trim();
+    if (!text) return json(res, 400, { error: "brief required" });
+    if (text.length > 1200) return json(res, 400, { error: "brief is too long (1200 characters max)" });
+
+    // A rejected request must not cost the caller one of its daily jobs.
+    const gate = limits.begin(clientIp(req));
+    if (!gate.ok) return tooMany(res, gate);
+    try {
       const events = [];
       const result = await runJob({
         brief: text,
-        budget: Number(budget) || 20,
+        budget: limits.clampBudget(body.budget),
         onEvent: (e) => events.push(e),
       });
-      return json(res, 200, { ...result, events });
+      return json(res, 200, { ...result, events, limits: limits.snapshot(clientIp(req)) });
     } catch (e) {
       return json(res, 500, { error: String(e.message || e) });
+    } finally {
+      gate.release();
     }
   }
 
   // ---- BOSS as a worker: another company or agent hires it ----
   if (url.pathname === "/api/firm/work" && req.method === "POST") {
+    let body;
     try {
-      const body = JSON.parse((await readBody(req)) || "{}");
-      const brief = String(body.brief || body.task || "").trim();
-      if (!brief) return json(res, 400, { error: "brief required" });
-      const budget = Math.min(Number(body.budget) || 5, 20);
+      body = JSON.parse((await readBody(req)) || "{}");
+    } catch {
+      return json(res, 400, { error: "body must be JSON" });
+    }
+    const brief = String(body.brief || body.task || "").trim();
+    if (!brief) return json(res, 400, { error: "brief required" });
+    if (brief.length > 1200) return json(res, 400, { error: "brief is too long (1200 characters max)" });
+
+    const gate = limits.begin(clientIp(req));
+    if (!gate.ok) return tooMany(res, gate);
+    try {
+      const budget = limits.clampBudget(body.budget, 5);
       const client = String(body.client || "anonymous-agent").slice(0, 64);
 
       const job = createJob({ brief, budget, client });
@@ -246,6 +343,8 @@ const server = createServer(async (req, res) => {
       });
     } catch (e) {
       return json(res, 500, { error: String(e.message || e) });
+    } finally {
+      gate.release();
     }
   }
 
@@ -259,18 +358,30 @@ const server = createServer(async (req, res) => {
   }
 
   if (url.pathname === "/api/firm/jobs" && req.method === "POST") {
+    const gate = limits.begin(clientIp(req));
+    if (!gate.ok) return tooMany(res, gate);
     try {
       const body = JSON.parse((await readBody(req)) || "{}");
       const brief = String(body.brief || body.task || "").trim();
-      if (!brief) return json(res, 400, { error: "brief required" });
+      if (!brief) {
+        gate.release();
+        return json(res, 400, { error: "brief required" });
+      }
+      if (brief.length > 1200) {
+        gate.release();
+        return json(res, 400, { error: "brief is too long (1200 characters max)" });
+      }
       const job = createJob({
         brief,
-        budget: Math.min(Number(body.budget) || 5, 20),
+        budget: limits.clampBudget(body.budget, 5),
         client: String(body.client || "you").slice(0, 64),
       });
-      executeJob(job); // async; poll /api/firm/jobs/:id
+      // The slot is held until the background job finishes, not until the
+      // response is sent: otherwise the queue could start jobs without bound.
+      executeJob(job).finally(gate.release); // async; poll /api/firm/jobs/:id
       return json(res, 202, { id: job.id, status: job.status });
     } catch (e) {
+      gate.release();
       return json(res, 400, { error: String(e.message || e) });
     }
   }
@@ -323,20 +434,58 @@ const server = createServer(async (req, res) => {
     return json(res, 200, {
       ...snapshot,
       account: market.account,
+      rate: env.nearUsdRate,
       worker: await probeWorker(),
       specs: recentSpecs(12),
     });
+  }
+
+  // Store a spec without touching the chain. A browser client uses this so the
+  // worker can fetch the brief it is being asked to deliver; the client then
+  // signs `open_job` itself.
+  if (url.pathname === "/api/market/spec" && req.method === "POST") {
+    try {
+      const body = JSON.parse((await readBody(req)) || "{}");
+      const brief = String(body.brief || body.task || "").trim();
+      if (!brief) return json(res, 400, { error: "brief required" });
+      if (brief.length > 1200) return json(res, 400, { error: "brief is too long (1200 characters max)" });
+
+      const allowance = limits.allowSpec(clientIp(req));
+      if (!allowance.ok) return tooMany(res, allowance);
+
+      const spec = {
+        brief,
+        capability: String(body.capability || "writing").slice(0, 40),
+        acceptance: Array.isArray(body.acceptance) ? body.acceptance.map(String).slice(0, 8) : [],
+        requires: Array.isArray(body.requires) ? body.requires.map(String).slice(0, 8) : [],
+        createdAt: new Date().toISOString(),
+        client: String(body.client || "browser-client").slice(0, 64),
+      };
+      const specText = JSON.stringify(spec);
+      const hash = saveSpec(specText);
+      return json(res, 201, { hash, specHash: hash, specUrl: `${env.siteUrl}/api/market/spec/${hash}`, spec });
+    } catch (e) {
+      return json(res, 400, { error: String(e.message || e) });
+    }
   }
 
   // Publish a spec and escrow for it. The spec body is stored here and its hash
   // goes on chain, because prose on chain costs more than the job is worth.
   if (url.pathname === "/api/market/jobs" && req.method === "POST") {
     if (!marketReady(res)) return;
+    let body;
     try {
-      const body = JSON.parse((await readBody(req)) || "{}");
-      const brief = String(body.brief || body.task || "").trim();
-      if (!brief) return json(res, 400, { error: "brief required" });
+      body = JSON.parse((await readBody(req)) || "{}");
+    } catch {
+      return json(res, 400, { error: "body must be JSON" });
+    }
+    const brief = String(body.brief || body.task || "").trim();
+    if (!brief) return json(res, 400, { error: "brief required" });
+    if (brief.length > 1200) return json(res, 400, { error: "brief is too long (1200 characters max)" });
 
+    const gate = limits.begin(clientIp(req));
+    if (!gate.ok) return tooMany(res, gate);
+    try {
       const spec = {
         brief,
         capability: String(body.capability || "writing").slice(0, 40),
@@ -366,9 +515,12 @@ const server = createServer(async (req, res) => {
         specHash: hash,
         specUrl,
         spec,
+        limits: limits.snapshot(clientIp(req)),
       });
     } catch (e) {
       return json(res, 500, { error: String(e.message || e) });
+    } finally {
+      gate.release();
     }
   }
 
@@ -396,67 +548,42 @@ const server = createServer(async (req, res) => {
     }
   }
 
-  // Settle a submitted job: fetch the result, check the hash, judge the work,
-  // then release or refund. The client never pays on the worker's word.
+  // Judge a submitted job without moving money. The browser reads this, then
+  // signs its own `release` or `refund`, so the server never holds the client's
+  // key and cannot settle on its own.
+  if (/^\/api\/market\/jobs\/\d+\/verdict$/.test(url.pathname) && req.method === "POST") {
+    try {
+      const id = Number(url.pathname.split("/")[4]);
+      const outcome = await inspectJob(id);
+      if (!outcome.action) return json(res, 409, { error: outcome.reason, job: outcome.job });
+      return json(res, 200, {
+        action: outcome.action,
+        reason: outcome.reason || null,
+        verdict: outcome.verdict || null,
+        deliverable: outcome.deliverable || null,
+        expected: outcome.expected,
+        got: outcome.got,
+        job: decorate(await market.getJob(id)),
+      });
+    } catch (e) {
+      return json(res, 500, { error: String(e.message || e) });
+    }
+  }
+
+  // Settle a submitted job with the server's key: fetch the result, check the
+  // hash, judge the work, then release or refund. The client never pays on the
+  // worker's word. A client with a connected wallet uses /verdict instead and
+  // signs the settlement itself.
   if (/^\/api\/market\/jobs\/\d+\/settle$/.test(url.pathname) && req.method === "POST") {
     if (!marketReady(res)) return;
     try {
       const id = Number(url.pathname.split("/")[4]);
-      const job = decorate(await market.getJob(id));
-      if (job.status !== "Submitted") {
-        return json(res, 409, { error: `job is ${job.status}, not Submitted`, job });
-      }
+      const outcome = await inspectJob(id);
+      if (!outcome.action) return json(res, 409, { error: outcome.reason, job: outcome.job });
 
-      // No spec on this server means the acceptance checks cannot be applied.
-      // Paying anyway would be paying on the worker's word, so refund instead.
-      const spec = loadSpec(job.specHash);
-      if (!spec) {
-        const refund = await market.refund(id);
-        return json(res, 200, {
-          action: "refund",
-          reason: "this server does not hold the spec for that job, so the work cannot be checked",
-          job: decorate(await market.getJob(id)),
-          tx: refund.tx,
-          url: refund.url,
-        });
-      }
-
-      let text;
-      try {
-        const fetched = await fetch(job.resultUrl, { signal: AbortSignal.timeout(20_000) });
-        if (!fetched.ok) throw new Error(`HTTP ${fetched.status}`);
-        text = await fetched.text();
-      } catch (e) {
-        const refund = await market.refund(id);
-        return json(res, 200, {
-          action: "refund",
-          reason: `result unreachable (${String(e.message || e).slice(0, 120)}) — a delivery nobody can read cannot be paid`,
-          job: decorate(await market.getJob(id)),
-          tx: refund.tx,
-          url: refund.url,
-        });
-      }
-
-      const gotHash = specHash(text);
-      if (gotHash !== job.resultHash) {
-        const refund = await market.refund(id);
-        return json(res, 200, {
-          action: "refund",
-          reason: "the bytes served do not match the hash the worker put on chain",
-          expected: job.resultHash,
-          got: gotHash,
-          job: decorate(await market.getJob(id)),
-          tx: refund.tx,
-          url: refund.url,
-        });
-      }
-
-      const verdict = await judgeDelivery(spec, text);
-      const settled = verdict.ok ? await market.release(id) : await market.refund(id);
+      const settled = outcome.action === "release" ? await market.release(id) : await market.refund(id);
       return json(res, 200, {
-        action: verdict.ok ? "release" : "refund",
-        verdict,
-        deliverable: text.slice(0, 6000),
+        ...outcome,
         job: decorate(await market.getJob(id)),
         tx: settled.tx,
         url: settled.url,
@@ -500,8 +627,8 @@ const server = createServer(async (req, res) => {
   res.end("not found");
 });
 
-server.listen(env.port, "127.0.0.1", () => {
-  console.log(`BOSS listening on http://localhost:${env.port}`);
+server.listen(env.port, env.bind, () => {
+  console.log(`BOSS listening on http://${env.bind}:${env.port}`);
   const chain = providersInOrder().map((p) => p.name).join(" → ") || "no model configured";
   console.log(`  models: ${chain}`);
   console.log(`  treasury: ${treasury.live ? `${treasury.contractId} on ${treasury.network}` : "local mirror (no key/contract)"}`);

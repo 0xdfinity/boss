@@ -39,8 +39,12 @@ export const env = {
   marketContractId: process.env.BOSS_MARKET_CONTRACT_ID || "",
   workerAccount: process.env.BOSS_WORKER_ACCOUNT || "",
   workerKey: process.env.BOSS_WORKER_KEY || "",
-  workerPort: Number(process.env.BOSS_WORKER_PORT || 8795),
-  workerUrl: process.env.BOSS_WORKER_URL || `http://127.0.0.1:${Number(process.env.BOSS_WORKER_PORT || 8795)}`,
+  workerPort: Number(process.env.BOSS_WORKER_PORT || process.env.PORT || 8795),
+  workerUrl:
+    process.env.BOSS_WORKER_URL ||
+    `http://127.0.0.1:${Number(process.env.BOSS_WORKER_PORT || process.env.PORT || 8795)}`,
   nearUsdRate: Number(process.env.NEAR_USD_RATE || 10),
   port: Number(process.env.PORT || 8787),
+  // Loopback by default. A container or PaaS must bind 0.0.0.0 to receive traffic.
+  bind: process.env.BOSS_BIND || "127.0.0.1",
 };

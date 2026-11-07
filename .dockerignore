@@ -1,0 +1,16 @@
+.git
+.github
+.opencode
+node_modules
+data
+docs
+contracts
+tests
+tasks
+.env
+.env.*
+!.env.example
+*.log
+Dockerfile
+.dockerignore
+render.yaml

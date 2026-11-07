@@ -70,6 +70,20 @@ export function parseScore(value) {
   return Math.max(0, Math.min(100, Number(num[0])));
 }
 
+/**
+ * Some models emit one array element with the separators left inside it:
+ * `["a","b","c"]` arrives as `["a\",\"b\",\"c"]`. Valid JSON, useless reasons.
+ * Split those back out, drop stray brackets/quotes, and keep the first few.
+ */
+export function normaliseReasons(value, limit = 3) {
+  const list = Array.isArray(value) ? value : typeof value === "string" ? [value] : [];
+  return list
+    .flatMap((item) => String(item).split('","'))
+    .map((item) => item.replace(/^[\s"'\[]+|[\s"'\]]+$/g, "").trim())
+    .filter(Boolean)
+    .slice(0, limit);
+}
+
 export async function judgeStage(stage, deliverable, context = {}) {  const det = stage.check ? stage.check(deliverable, context.prior, context.critique, stage.brief) : { ok: true, reason: "no rules" };
   if (!det.ok) {
     return { ok: false, mode: "rules", score: 0, reasons: [det.reason] };
@@ -109,7 +123,7 @@ export async function judgeStage(stage, deliverable, context = {}) {  const det 
       score,
       reasons: [
         det.reason,
-        ...(Array.isArray(parsed.reasons) ? parsed.reasons.slice(0, 3).map(String) : []),
+        ...normaliseReasons(parsed.reasons),
       ],
     };
   } catch {
@@ -141,7 +155,7 @@ export async function finalVerdict(brief, artifact) {
       ok: saidPass && score >= 55,
       mode: reply.provider,
       score,
-      reasons: (Array.isArray(p.reasons) ? p.reasons : []).slice(0, 3).map(String),
+      reasons: normaliseReasons(p.reasons),
     };
   } catch {
     return { ok: true, mode: "rules", score: 70, reasons: [`${reply.provider} returned unparseable JSON`] };

@@ -15,6 +15,7 @@
   <header class="top">
     <div class="wordmark">boss<span class="suf">· NEAR</span></div>
     <div class="top-right">
+      <button id="walletBtn" class="pill wallet" type="button" title="connect a testnet wallet as the client">connect wallet</button>
       <button id="howBtn" class="pill" type="button">how it works</button>
       <button id="marketBtn" class="pill" type="button">market</button>
       <div id="spentPill" class="pill meter" data-live="mirror" title="settlement mode">
@@ -91,8 +92,19 @@
       <div class="rule"><span>second firm</span><b id="mktWorker">—</b></div>
       <div class="rule"><span>settled</span><b id="mktSettled">—</b></div>
     </div>
+    <div class="wallet-row">
+      <button id="walletConnect" type="button" class="wallet-connect">connect a testnet wallet</button>
+      <span id="walletState" class="wallet-state">not connected</span>
+    </div>
+    <p class="wallet-note" id="walletNote">
+      A connected wallet is the <b>client</b>. Your wallet signs the escrow — NEAR forbids deposits on function-call
+      keys — and a key scoped to <code>open_job</code>, <code>release</code> and <code>refund</code> signs the
+      zero-deposit settlement. Neither key leaves this browser.
+    </p>
+    <p class="limits-line" id="limitsLine"></p>
     <div class="market-actions">
-      <button id="marketDemo" type="button" class="market-run">run a live job on testnet</button>
+      <button id="marketOwn" type="button" class="market-run ghost" disabled>run as your firm</button>
+      <button id="marketDemo" type="button" class="market-run">run a demo job (no wallet)</button>
       <button id="marketRefresh" type="button" class="market-refresh">refresh</button>
     </div>
     <div class="market-log" id="marketLog" aria-live="polite">
