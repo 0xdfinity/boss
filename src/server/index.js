@@ -23,7 +23,7 @@ import { listAgents, registerAgent } from "../firm/agents.js";
 import { treasury } from "../chain/treasury.js";
 import { market, specHash, decorate } from "../chain/market.js";
 import { judgeDelivery } from "../firm/accept.js";
-import { providersInOrder } from "../ai/model.js";
+import { providersInOrder, modelStatus } from "../ai/model.js";
 import { BOSS_POLICY } from "../security/policies.js";
 import { env } from "../config/env.js";
 import { limits, clientIp } from "./limits.js";
@@ -270,6 +270,8 @@ const server = createServer(async (req, res) => {
       policy: BOSS_POLICY,
       live: {
         models: providersInOrder().map((p) => p.name),
+        // Configured is not the same as answering. `null ok` = not tried yet.
+        modelStatus: modelStatus(),
         intents: Boolean(env.intentsJwt),
         treasury: env.treasuryContractId || "not-deployed",
         market: env.marketContractId || "not-deployed",

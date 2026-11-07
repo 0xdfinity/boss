@@ -22,10 +22,24 @@ export function providersInOrder() {
 
 const TIMEOUT_MS = Number(process.env.MODEL_TIMEOUT_MS || 45_000);
 
+// What each provider did the last time it was tried. `providersInOrder()` says
+// what is configured; this says what actually answered. Without it a bad key
+// looks healthy on /health and every call quietly falls back to Groq.
+const state = new Map();
+
+export function modelStatus() {
+  return providersInOrder().map((p) => ({
+    name: p.name,
+    model: p.model,
+    ...(state.get(p.name) || { ok: null, at: null }),
+  }));
+}
+
 async function run({ system, user, temperature = 0, json = false, maxTokens = 900 }) {
   const errors = [];
 
   for (const p of providersInOrder()) {
+    const started = Date.now();
     try {
       const body = {
         model: p.model,
@@ -55,9 +69,12 @@ async function run({ system, user, temperature = 0, json = false, maxTokens = 90
       const data = await res.json();
       const text = data.choices?.[0]?.message?.content ?? "";
       if (!text.trim()) throw new Error("empty completion");
+      state.set(p.name, { ok: true, at: new Date().toISOString(), ms: Date.now() - started, model: p.model });
       return { text: text.trim(), provider: p.name, model: p.model };
     } catch (e) {
-      errors.push(`${p.name}: ${e.message}`);
+      const message = String(e.message || e).slice(0, 200);
+      state.set(p.name, { ok: false, at: new Date().toISOString(), ms: Date.now() - started, model: p.model, error: message });
+      errors.push(`${p.name}: ${message}`);
     }
   }
 

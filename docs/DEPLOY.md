@@ -29,6 +29,10 @@ on the client account for a full day of demo jobs (60 × 0.05 NEAR escrow). Lock
 storage stake does not count — if a create fails with `LackBalanceForState`,
 compare `amount` and `locked`, not just the headline balance.
 
+Released jobs pay the second firm, so its balance grows while the client's
+shrinks. `npm run sweep` shows what it is holding and, with `--yes`, transfers
+the surplus back and leaves a 1 NEAR reserve.
+
 ## 2. Render (blueprint included)
 
 1. Push the repo to GitHub, then **New → Blueprint** and select it.
@@ -37,7 +41,9 @@ compare `amount` and `locked`, not just the headline balance.
    into the blueprint.
 4. Set `SITE_URL` to the service URL Render gave you
    (`https://<name>.onrender.com`) and redeploy. Spec links and the worker's
-   `result_url` both use it, so this step is not optional.
+   `result_url` both use it. On Render the platform's `RENDER_EXTERNAL_URL` is
+   picked up when `SITE_URL` is unset, so this is a belt-and-braces step rather
+   than a required one — but set it, and check the first job's `result_url`.
 5. Check `https://<name>.onrender.com/health`.
 
 The disk is what keeps the daily demo counters across deploys. Without it the
@@ -90,7 +96,7 @@ demo aid, not a submission host.
 | `BOSS_BIND` | `127.0.0.1` | must be `0.0.0.0` in a container |
 | `BOSS_TRUST_PROXY` | off | `1` behind a proxy, so per-IP limits read `x-forwarded-for` |
 | `BOSS_EMBED_WORKER` | off | `1` runs the second firm in the same container |
-| `SITE_URL` | `http://127.0.0.1:8787` | public URL; spec links and result URLs use it |
+| `SITE_URL` | `http://127.0.0.1:8787` | public URL; spec links and result URLs use it. On Render, `RENDER_EXTERNAL_URL` is used when this is unset |
 | `BOSS_JOBS_PER_IP_DAY` | `5` | demo jobs one address may start |
 | `BOSS_JOBS_PER_DAY` | `60` | hard ceiling on the operator's wallet |
 | `BOSS_CONCURRENT_JOBS` | `2` | jobs running at once |
@@ -112,7 +118,11 @@ curl -s https://<host>/health
 ```
 
 Expect `"ok":true`, `"live":{"models":[...]}`, the treasury and market ids, and
-a chain mode of `near` (`mirror` means no key was picked up). Then:
+a chain mode of `near` (`mirror` means no key was picked up). `live.modelStatus`
+is what each provider did on its last call: `ok: null` means not tried yet, and
+a `false` carries the provider's own error, so a bad key cannot hide behind a
+working fallback. Before deploying, `npm run model:check` proves one real
+completion goes through. Then:
 
 1. Press **market** → **run a demo job (no wallet)**. The feed must show
    `open_job`, a delivery, a verdict, and a release or refund transaction whose

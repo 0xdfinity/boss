@@ -19,7 +19,7 @@ for (const name of [".env", ".env.local"]) {
 
 export const env = {
   nearAiKey: process.env.NEAR_AI_API_KEY || "",
-  nearAiBaseUrl: process.env.NEAR_AI_BASE_URL || "https://cloud.near.ai",
+  nearAiBaseUrl: process.env.NEAR_AI_BASE_URL || "https://cloud-api.near.ai",
   nearAiModel: process.env.NEAR_AI_MODEL || "",
   groqKey: process.env.GROQ_API_KEY || "",
   groqBaseUrl: process.env.GROQ_BASE_URL || "https://api.groq.com/openai/v1",
@@ -34,7 +34,7 @@ export const env = {
   intentsApiUrl: process.env.NEAR_INTENTS_API_URL || "https://api.near-intents.org",
   intentsJwt: process.env.NEAR_INTENTS_JWT || "",
   evmRpcBaseSepolia: process.env.EVM_RPC_URL_BASE_SEPOLIA || "https://sepolia.base.org",
-  siteUrl: process.env.SITE_URL || "http://127.0.0.1:8787",
+  siteUrl: (process.env.SITE_URL || process.env.RENDER_EXTERNAL_URL || "http://127.0.0.1:8787").replace(/\/+$/, ""),
   treasuryContractId: process.env.BOSS_TREASURY_CONTRACT_ID || "",
   marketContractId: process.env.BOSS_MARKET_CONTRACT_ID || "",
   workerAccount: process.env.BOSS_WORKER_ACCOUNT || "",

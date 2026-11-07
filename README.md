@@ -94,10 +94,16 @@ transactions the page hands it are accepted.
 
 ## Host it
 
-The repo ships a `Dockerfile` and a Render blueprint. The worker must be a
-public service, because the client fetches the deliverable and checks its hash
-before releasing escrow. Steps, environment, and a post-deploy checklist are in
-[`docs/DEPLOY.md`](docs/DEPLOY.md).
+The repo ships a `Dockerfile` and a Render blueprint. One container runs both
+firms: the second firm is a child process with its own account and key, listening
+on loopback, and only `/result/<id>` is proxied to the public origin — the client
+fetches the deliverable and checks its hash before releasing escrow. Steps,
+environment, and a post-deploy checklist are in [`docs/DEPLOY.md`](docs/DEPLOY.md).
+
+A demo job pays the worker 0.05 NEAR out of the client account. `npm run sweep`
+prints the surplus held by the worker and, with `--yes`, moves it back to the
+client while keeping a 1 NEAR reserve, so a busy day does not leave the treasury
+dry.
 
 ## Tech Stack
 
@@ -157,13 +163,19 @@ If the hash does not match, or the result cannot be fetched, the client refunds.
 ```console
 # from an existing checkout of this repository
 npm install         # zero runtime dependencies
-npm test            # 49 tests: policy caps, plan rules, firm flow, acceptance, RPC failover, public limits
+npm test            # 50 tests: policy caps, plan rules, firm flow, acceptance, RPC failover, public limits, model status
 npm run server      # http://127.0.0.1:8787
 ```
 
 Open the page, type a brief, press send. With no model key the firm refuses the
 first stage and pays nothing — it does not guess at the work — and the feed says
 which key to set.
+
+Two commands check a key without printing it. `npm run models` lists what the key
+can reach and flags a model id that is not on the list; `npm run model:check`
+runs one real JSON completion through the router and reports which provider
+answered, so a key that lists a model but is refused by it cannot pass as
+healthy.
 
 ### Two ways in
 
@@ -229,7 +241,7 @@ npm run deploy:market
 | `GROQ_BASE_URL` | no | default `https://api.groq.com/openai/v1` |
 | `NEAR_AI_API_KEY` | optional | primary model provider |
 | `NEAR_AI_MODEL` | optional | leave empty to skip NEAR AI |
-| `NEAR_AI_BASE_URL` | no | default `https://cloud.near.ai` |
+| `NEAR_AI_BASE_URL` | no | default `https://cloud-api.near.ai`; the website `cloud.near.ai` is not the API |
 | `NEAR_ACCOUNT` | for on-chain pay | treasury and market signer account |
 | `NEAR_PRIVATE_KEY` | for on-chain pay | signer key, server-side only |
 | `BOSS_TREASURY_CONTRACT_ID` | for on-chain pay | deployed treasury contract |
@@ -242,7 +254,7 @@ npm run deploy:market
 | `NEAR_RPC_URL` | no | default `https://test.rpc.fastnear.com`; near.org's public endpoint is retiring |
 | `NEAR_NETWORK` | no | `testnet` or `mainnet` |
 | `NEAR_USD_RATE` | no | USD per NEAR for transfers; default `10` |
-| `SITE_URL` | no | default `http://127.0.0.1:8787`; where specs are published |
+| `SITE_URL` | no | default `http://127.0.0.1:8787`; where specs are published. Render's `RENDER_EXTERNAL_URL` is used when this is unset |
 | `PORT` | no | default `8787` |
 | `BOSS_BIND` | no | default `127.0.0.1`; set `0.0.0.0` in a container |
 | `BOSS_TRUST_PROXY` | no | `1` behind a proxy, so per-IP limits read `x-forwarded-for` |

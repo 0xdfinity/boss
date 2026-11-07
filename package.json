@@ -16,9 +16,11 @@
     "worker": "node scripts/firm_worker.mjs",
     "demo": "node scripts/demo_market.mjs",
     "models": "node scripts/models.mjs",
+    "model:check": "node scripts/model_check.mjs",
     "wallet:check": "node scripts/wallet_check.mjs",
+    "sweep": "node scripts/sweep.mjs",
     "test": "node --test tests/policies.test.js tests/plan.test.js tests/firm.test.js tests/fallback.test.js tests/accept.test.js tests/rpc.test.js tests/limits.test.js tests/browser-tx.test.js",
-    "typecheck": "node --check src/server/index.js && node --check src/firm/run.js && node --check src/firm/worker.js && node --check src/chain/market.js && node --check src/chain/near.js && node --check frontend/app.js && node --check frontend/near-lite.js && node --check frontend/wallet.js && node --check src/server/limits.js && node --check scripts/wallet_check.mjs"
+    "typecheck": "node --check src/server/index.js && node --check src/firm/run.js && node --check src/firm/worker.js && node --check src/chain/market.js && node --check src/chain/near.js && node --check frontend/app.js && node --check frontend/near-lite.js && node --check frontend/wallet.js && node --check src/server/limits.js && node --check scripts/wallet_check.mjs && node --check scripts/model_check.mjs && node --check scripts/sweep.mjs"
   },
   "engines": {
     "node": ">=20"
