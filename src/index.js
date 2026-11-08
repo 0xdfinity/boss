@@ -5,9 +5,10 @@ function parseArgs(argv) {
   const args = {
     budget: 20,
     brief:
-      "Write 5 numbered checks a client runs after a worker submits a job to boss_market. " +
-      "Each check must use one of these fields - result_hash, result_url, deadline, released, refunded - " +
-      "and state what it compares and what counts as failure. Do not mention any other field. Under 120 words.",
+      "Write 5 numbered checks a client runs before releasing a boss_market escrow. " +
+      "Cover, in order: (1) deadline is still in the future, (2) the SHA-256 of the bytes at result_url equals result_hash, " +
+      "(3) fetching result_url returns HTTP 200, (4) released is false, (5) refunded is false. " +
+      "One sentence each, naming the field and the failure condition. Under 120 words.",
   };
   for (let i = 2; i < argv.length; i++) {
     if (argv[i] === "--budget") args.budget = Number(argv[++i]);

@@ -32,10 +32,10 @@ Two independent firms run two real jobs on NEAR testnet. Job A delivers a settle
 
 | Job | What happened | Settlement |
 |---|---|---|
-| A — settlement checklist | worker delivered bytes, client matched the hash, judged 95/100 | [released 0.05 NEAR](https://testnet.nearblocks.io/txns/F2ohpRSb2XMGwLZthknTGUodrcVdFxjXWYxSm4kPRegM) |
-| B — read the treasury balance | worker declined instead of inventing a number; the client's rules caught it | [refunded 0.05 NEAR](https://testnet.nearblocks.io/txns/C7xtSj52c7nt3RxXeg4NfMGtsrYTbqtikW72JybUqwFb) |
+| A — settlement checklist | worker delivered bytes, client matched the hash, judged 95/100 | [released 0.05 NEAR](https://testnet.nearblocks.io/txns/FGeRUZLsaxG3aeF8ocMN1w65mCbYXDQZ8VtNbsNZWFaK) |
+| B — read the treasury balance | worker declined instead of inventing a number; the client's rules caught it | [refunded 0.05 NEAR](https://testnet.nearblocks.io/txns/3Q7UrAgpCS6iomCakXb8Xq2r7LtQgMJzJ3uE4X9mXukY) |
 
-The escrow was opened for [job B](https://testnet.nearblocks.io/txns/9tzqRunDp1t8nxW8YSxSbZAqkYbHvxZnfLoAH4DWy4T4) and settles in the two transactions above. The contract is [`market.boss-firm-506331.testnet`](https://testnet.nearblocks.io/address/market.boss-firm-506331.testnet).
+The escrow was opened for [job B](https://testnet.nearblocks.io/txns/E4CWUi3H2XnR3gceZHk9gRZBqGiAuQBAvvLpYB4nx31n) and settles in the two transactions above. The contract is [`market.boss-firm-506331.testnet`](https://testnet.nearblocks.io/address/market.boss-firm-506331.testnet).
 
 ![The market panel after a run from the browser: job A released, job B refunded](docs/boss-market.png)
 

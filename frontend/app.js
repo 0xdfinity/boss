@@ -127,7 +127,25 @@ try {
 }
 
 // ---------- composer ----------
-taskEl.addEventListener("input", syncSend);
+// Size the box to what is actually painted. The placeholder is drawn like
+// content but is not part of scrollHeight, so an empty composer whose
+// placeholder wraps (a phone) would otherwise be cut off.
+function growTask() {
+  const had = taskEl.value;
+  if (!had) taskEl.value = taskEl.placeholder;
+  taskEl.style.height = "auto";
+  const height = taskEl.scrollHeight;
+  if (!had) taskEl.value = "";
+  taskEl.style.height = `${Math.max(height, 49)}px`;
+}
+
+growTask();
+window.addEventListener("resize", growTask);
+
+taskEl.addEventListener("input", () => {
+  growTask();
+  syncSend();
+});
 taskEl.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) {
     e.preventDefault();
@@ -140,6 +158,7 @@ let exampleIndex = -1;
 moreBtn.addEventListener("click", () => {
   exampleIndex = (exampleIndex + 1) % EXAMPLES.length;
   taskEl.value = EXAMPLES[exampleIndex];
+  growTask();
   syncSend();
   taskEl.focus();
 });
@@ -148,12 +167,14 @@ document.querySelector("#examples").addEventListener("click", (e) => {
   const btn = e.target.closest("button[data-task]");
   if (!btn) return;
   taskEl.value = btn.dataset.task;
+  growTask();
   syncSend();
   taskEl.focus();
 });
 
 document.querySelector("#cta").addEventListener("click", () => {
   taskEl.value = DEFAULT_TASK;
+  growTask();
   syncSend();
   form.requestSubmit();
 });
@@ -261,9 +282,10 @@ async function runMarketDemo() {
     const a = await postJob({
       capability: "writing",
       brief:
-        "Write 5 numbered checks a client runs after a worker submits a job to boss_market. " +
-        "Each check must use one of these fields - result_hash, result_url, deadline, released, refunded - " +
-        "and state what it compares and what counts as failure. Do not mention any other field. Under 120 words.",
+        "Write 5 numbered checks a client runs before releasing a boss_market escrow. " +
+        "Cover, in order: (1) deadline is still in the future, (2) the SHA-256 of the bytes at result_url equals result_hash, " +
+        "(3) fetching result_url returns HTTP 200, (4) released is false, (5) refunded is false. " +
+        "One sentence each, naming the field and the failure condition. Under 120 words.",
       acceptance: ["exactly 5 numbered checks", "each check names a field and a failure condition", "under 120 words"],
       depositUsd: 0.5,
       deadlineSecs: 900,
@@ -411,9 +433,10 @@ async function runOwnJob() {
   marketLog.replaceChildren();
   const brief =
     (taskEl.value || "").trim() ||
-    "Write 5 numbered checks a client runs after a worker submits a job to boss_market. " +
-      "Each check must use one of these fields - result_hash, result_url, deadline, released, refunded - " +
-      "and state what it compares and what counts as failure. Do not mention any other field. Under 120 words.";
+    "Write 5 numbered checks a client runs before releasing a boss_market escrow. " +
+      "Cover, in order: (1) deadline is still in the future, (2) the SHA-256 of the bytes at result_url equals result_hash, " +
+      "(3) fetching result_url returns HTTP 200, (4) released is false, (5) refunded is false. " +
+      "One sentence each, naming the field and the failure condition. Under 120 words.";
 
   try {
     mlog(`you are the client · ${wallet.accountId}`, "dim");
@@ -491,6 +514,7 @@ form.addEventListener("submit", async (e) => {
 
   add(brief, "user");
   taskEl.value = "";
+  growTask();
   syncSend();
 
   let paid = 0;

@@ -25,7 +25,10 @@
   </header>
 
   <main class="stage">
-    <h1 class="headline">what needs doing?</h1>
+    <div class="hero-copy">
+      <p class="sub">One brief, four hired agents, paid on NEAR only when the work passes.</p>
+      <h1 class="headline">what needs doing?</h1>
+    </div>
   </main>
 
   <section class="thread" id="thread" aria-live="polite"></section>
@@ -37,9 +40,9 @@
   </div>
 
   <form class="composer" id="composer" autocomplete="off">
-    <textarea id="task" name="task" rows="2" autofocus
+    <textarea id="task" name="task" rows="1" autofocus
       aria-label="What should BOSS do?"
-      placeholder="Write 5 numbered checks a client runs after a worker submits a job to boss_market"></textarea>
+      placeholder="Write 5 numbered checks a client runs before releasing a boss_market escrow"></textarea>
     <div class="composer-row">
       <button type="button" id="more" class="more" aria-label="cycle example briefs" title="cycle examples">+</button>
       <span class="hint">↵ send · ⇧↵ newline</span>
@@ -52,7 +55,7 @@
   </form>
 
   <div class="examples" id="examples">
-    <button type="button" data-task="Write 5 numbered checks a client runs after a worker submits a job to boss_market. Each check must use one of these fields - result_hash, result_url, deadline, released, refunded - and state what it compares and what counts as failure. Do not mention any other field. Under 120 words.">escrow checks</button>
+    <button type="button" data-task="Write 5 numbered checks a client runs before releasing a boss_market escrow. Cover, in order: (1) deadline is still in the future, (2) the SHA-256 of the bytes at result_url equals result_hash, (3) fetching result_url returns HTTP 200, (4) released is false, (5) refunded is false. One sentence each, naming the field and the failure condition. Under 120 words.">escrow checks</button>
     <button type="button" data-task="Write the refund notice for a delivery that missed its required source URL. State the failed check, not an apology. Under 80 words.">refund notice</button>
     <button type="button" data-task="Write the agent card for our research agent: capability, price, input, output, and the 2 checks a client can run before paying. Under 110 words.">agent card</button>
   </div>
@@ -70,7 +73,7 @@
       <li><b>you send a brief.</b> any words — a settlement checklist, a refund notice, an agent card.</li>
       <li><b>the firm splits it.</b> scout plans research → draft → critique → revise.</li>
       <li><b>it hires agents.</b> the cheapest capable agent wins, in-house or outside.</li>
-      <li><b>the judge checks the work.</b> rules first, then a model rubric. Fails are not paid.</li>
+      <li><b>the judge checks the work.</b> rules first, then a model rubric. fails are not paid.</li>
       <li><b>the treasury pays.</b> caps live in the contract, not in the prompt.</li>
     </ol>
     <div class="rules">
@@ -78,7 +81,7 @@
       <div class="rule"><span>per day</span><b>$20.00 cap</b></div>
       <div class="rule"><span>payment</span><b>only on a passing verdict</b></div>
     </div>
-    <p class="small">Built for the agent economy: an outside agent registers with a capability, a price and a stake, and can be hired by URL. BOSS itself answers on <code>POST /api/firm/work</code>, so another company or agent can hire it in one call.</p>
+    <p class="small">An outside agent registers with a capability, a price and an endpoint, and can be hired by URL. BOSS itself answers on <code>POST /api/firm/work</code>, so another company or agent can hire it in one call.</p>
   </div>
 </div>
 
