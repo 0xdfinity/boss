@@ -150,7 +150,9 @@ export function planStages(brief) {
  */
 export function briefSpec(brief) {
   const text = String(brief || "");
-  const m = text.match(/\b(\d+)\s+(?:distinct\s+|short\s+|different\s+|new\s+)?(taglines|slogans|options|names|ideas|headlines|bullets|lines|variations)\b/i);
+  const m = text.match(
+    /\b(\d+)\s+(?:distinct\s+|short\s+|different\s+|new\s+|numbered\s+)?(taglines|slogans|options|names|ideas|headlines|bullets|lines|variations|checks|tests|steps|questions)\b/i
+  );
   const count = m ? Number(m[1]) : 0;
   const wantsPick = /pick the strongest|choose the (?:best|strongest)|best option|strongest (?:one|option|tagline)/i.test(text);
   return { count, wantsPick };
@@ -322,8 +324,10 @@ export function toPlainText(text) {
     .trim();
 }
 
-export function artifactHint(brief) {  const t = String(brief).toLowerCase();
+export function artifactHint(brief) {
+  const t = String(brief).toLowerCase();
   if (/tagline|slogan|name/.test(t)) return "a set of named options plus the strongest pick and why";
+  if (/check|acceptance|release|escrow|refund/.test(t)) return "a numbered checklist the other side can run without trusting the firm";
   if (/plan|launch|roadmap|strategy/.test(t)) return "a one-page plan with owners and a first-week checklist";
   if (/summar|bullet|digest/.test(t)) return "a short summary with bullets, no filler";
   if (/review|critique|feedback/.test(t)) return "a rubric-based review with specific fixes";

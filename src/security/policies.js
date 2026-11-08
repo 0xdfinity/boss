@@ -7,7 +7,7 @@ export const BOSS_POLICY = Object.freeze({
   maxAgentSpend: "2", // USDC per transaction
   dailyBudget: "20", // USDC per day across the swarm
   requireProof: true, // no verified proof = auto refund
-  allowedChains: ["near", "base", "eth"],
+  allowedChains: ["near"], // every settled payment in this build is NEAR
 });
 
 export function toMicro(amount) {

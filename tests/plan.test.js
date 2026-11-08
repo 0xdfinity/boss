@@ -107,5 +107,6 @@ test("plan is four stages and the hint tracks the brief", () => {
   assert.deepEqual(stages.map((s) => s.kind), ["research", "draft", "critique", "revise"]);
   assert.equal(stages[0].brief, "write taglines");
   assert.match(artifactHint("write 5 taglines"), /options/);
+  assert.match(artifactHint("write 5 numbered checks before releasing escrow"), /checklist/);
   assert.match(artifactHint("make a launch plan"), /plan/);
 });

@@ -1,8 +1,14 @@
-// BOSS CLI: node src/index.js --budget 5 --brief "write five taglines for a coffee club"
+// BOSS CLI: node src/index.js --budget 5 --brief "write the checks before release"
 import { runJob } from "./firm/run.js";
 
 function parseArgs(argv) {
-  const args = { budget: 20, brief: "Write 5 taglines for a coffee subscription, then pick the strongest" };
+  const args = {
+    budget: 20,
+    brief:
+      "Write 5 numbered checks a client runs after a worker submits a job to boss_market. " +
+      "Each check must use one of these fields - result_hash, result_url, deadline, released, refunded - " +
+      "and state what it compares and what counts as failure. Do not mention any other field. Under 120 words.",
+  };
   for (let i = 2; i < argv.length; i++) {
     if (argv[i] === "--budget") args.budget = Number(argv[++i]);
     if (argv[i] === "--brief" || argv[i] === "--task") args.brief = argv[++i];

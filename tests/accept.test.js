@@ -34,6 +34,14 @@ test("the asked-for item count is enforced", () => {
   assert.match(r.reasons.join(" "), /asked for 5 items/i);
 });
 
+test("the count rule also reads checks, tests, and steps", () => {
+  const brief = "Write 5 numbered checks a client can run before releasing an escrow job.";
+  const good = "1. Hash matches\n2. Word count in bounds\n3. Every part answered\n4. No refused claim\n5. Source URL resolves";
+  const short = "1. Hash matches\n2. Word count in bounds\n3. Every part answered";
+  assert.equal(checkRules(spec(brief), good).ok, true);
+  assert.equal(checkRules(spec(brief), short).ok, false);
+});
+
 test("a spec that requires a source URL rejects a delivery without one", () => {
   const brief = "Find one current statistic about coffee and include a source URL. Under 80 words.";
   const noLink = "Global coffee consumption is large and growing every year, according to several reports.";

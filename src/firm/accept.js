@@ -35,7 +35,9 @@ export function checkRules(spec, text) {
   }
 
   const items = (spec.acceptance || []).join(" ").toLowerCase();
-  const countMatch = items.match(/(\d+)\s+(?:numbered\s+|distinct\s+)?(?:items|taglines|slogans|options|lines|bullets)/);
+  const countMatch = items.match(
+    /(\d+)\s+(?:numbered\s+|distinct\s+)?(?:items|taglines|slogans|options|lines|bullets|checks|tests|steps|questions)/
+  );
   const want = countMatch ? Number(countMatch[1]) : briefSpec(spec.brief || "").count;
   if (want > 0) {
     const got = listCount(body);

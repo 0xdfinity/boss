@@ -272,7 +272,6 @@ const server = createServer(async (req, res) => {
         models: providersInOrder().map((p) => p.name),
         // Configured is not the same as answering. `null ok` = not tried yet.
         modelStatus: modelStatus(),
-        intents: Boolean(env.intentsJwt),
         treasury: env.treasuryContractId || "not-deployed",
         market: env.marketContractId || "not-deployed",
         worker: env.workerAccount || "not-configured",

@@ -138,8 +138,8 @@ says which cap. `data/limits.json` can be reset by deleting it and restarting.
 
 ## 7. What is deliberately not here
 
-- No mainnet. The chain client and the UI are testnet-scoped, and NEAR Intents
-  has no testnet, so the cross-chain number is a labelled dry quote.
+- No mainnet and no cross-chain transfer. Every payment in this build is on NEAR
+  testnet; the tagline names the direction, not a shipped bridge.
 - No database. Job state lives on chain; the server keeps only specs, agent
   config, and counters, all in `data/`.
 - No multi-replica setup. One process owns one disk and one embedded worker; a

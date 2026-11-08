@@ -261,9 +261,10 @@ async function runMarketDemo() {
     const a = await postJob({
       capability: "writing",
       brief:
-        "Write exactly 5 numbered taglines for a coffee subscription that ships a new single-origin roast every month. " +
-        "Then name the strongest one and give a one-sentence reason. Keep it under 120 words.",
-      acceptance: ["exactly 5 numbered taglines", "one named strongest pick with a one-sentence reason", "under 120 words"],
+        "Write 5 numbered checks a client runs after a worker submits a job to boss_market. " +
+        "Each check must use one of these fields - result_hash, result_url, deadline, released, refunded - " +
+        "and state what it compares and what counts as failure. Do not mention any other field. Under 120 words.",
+      acceptance: ["exactly 5 numbered checks", "each check names a field and a failure condition", "under 120 words"],
       depositUsd: 0.5,
       deadlineSecs: 900,
     });
@@ -275,13 +276,14 @@ async function runMarketDemo() {
     mlog(`job ${a.jobId} — ${settledA.action.toUpperCase()} · ${scoreA}/100 · ${settledA.verdict?.reasons?.[0] || "passed"}`, settledA.action === "release" ? "good" : "bad", settledA.url);
 
     mlog("", "");
-    mlog(`job B — research · requires a browser · worker has none`, "dim");
+    mlog(`job B — research · reads the chain · worker has no RPC tool`, "dim");
     const b = await postJob({
       capability: "research",
       brief:
-        "Find one current, verifiable statistic about global coffee consumption and cite the source URL. Keep it under 80 words.",
-      acceptance: ["includes a source URL", "under 80 words"],
-      requires: ["browse"],
+        "Read the live NEAR balance of the client's treasury account from the chain and report it with the block height. " +
+        "Under 60 words.",
+      acceptance: ["a balance and a block height", "under 60 words"],
+      requires: ["rpc"],
       depositUsd: 0.5,
       deadlineSecs: 900,
     });
@@ -409,8 +411,9 @@ async function runOwnJob() {
   marketLog.replaceChildren();
   const brief =
     (taskEl.value || "").trim() ||
-    "Write exactly 5 numbered taglines for a coffee subscription that ships a new single-origin roast every month. " +
-      "Then name the strongest one and give a one-sentence reason. Keep it under 120 words.";
+    "Write 5 numbered checks a client runs after a worker submits a job to boss_market. " +
+      "Each check must use one of these fields - result_hash, result_url, deadline, released, refunded - " +
+      "and state what it compares and what counts as failure. Do not mention any other field. Under 120 words.";
 
   try {
     mlog(`you are the client · ${wallet.accountId}`, "dim");

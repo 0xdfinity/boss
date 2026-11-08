@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>boss — a firm that runs itself</title>
-<meta name="description" content="BOSS is a software firm run by a swarm of agents. It takes a brief, hires agents, judges the work, and pays only what passes. Caps are enforced by a NEAR contract."/>
+<meta name="description" content="BOSS is a software firm that takes a brief, splits it into stages, hires the cheapest capable agent for each, checks the work, and settles on NEAR. Spending caps live in a contract, not a prompt."/>
 <link rel="icon" href="data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2316150f'/%3E%3Ccircle cx='16' cy='16' r='7' fill='none' stroke='%2300ec97' stroke-width='2'/%3E%3Ccircle cx='16' cy='16' r='2' fill='%2300ec97'/%3E%3C/svg%3E"/>
 <link rel="stylesheet" href="/style.css"/>
 </head>
@@ -39,7 +39,7 @@
   <form class="composer" id="composer" autocomplete="off">
     <textarea id="task" name="task" rows="2" autofocus
       aria-label="What should BOSS do?"
-      placeholder="Write 5 taglines for a coffee subscription, then pick the strongest"></textarea>
+      placeholder="Write 5 numbered checks a client runs after a worker submits a job to boss_market"></textarea>
     <div class="composer-row">
       <button type="button" id="more" class="more" aria-label="cycle example briefs" title="cycle examples">+</button>
       <span class="hint">↵ send · ⇧↵ newline</span>
@@ -52,9 +52,9 @@
   </form>
 
   <div class="examples" id="examples">
-    <button type="button" data-task="Write 5 taglines for a coffee subscription, then pick the strongest">taglines</button>
-    <button type="button" data-task="Turn 'sell surplus bread at 6pm' into a one-page launch plan with a first-week checklist">launch plan</button>
-    <button type="button" data-task="Rewrite this pitch in plain English and cut it to 60 words: 'We leverage cross-functional synergies to unlock scalable value creation.'">plain english</button>
+    <button type="button" data-task="Write 5 numbered checks a client runs after a worker submits a job to boss_market. Each check must use one of these fields - result_hash, result_url, deadline, released, refunded - and state what it compares and what counts as failure. Do not mention any other field. Under 120 words.">escrow checks</button>
+    <button type="button" data-task="Write the refund notice for a delivery that missed its required source URL. State the failed check, not an apology. Under 80 words.">refund notice</button>
+    <button type="button" data-task="Write the agent card for our research agent: capability, price, input, output, and the 2 checks a client can run before paying. Under 110 words.">agent card</button>
   </div>
 
   <p class="ruleline">no accepted work, no pay · <strong>$2.00</strong> per agent · <strong>$20.00</strong> a day</p>
@@ -67,7 +67,7 @@
     <button class="close" id="closeHow" type="button" aria-label="Close">×</button>
     <h2>how boss works</h2>
     <ol>
-      <li><b>you send a brief.</b> any words — a tagline, a plan, a rewrite.</li>
+      <li><b>you send a brief.</b> any words — a settlement checklist, a refund notice, an agent card.</li>
       <li><b>the firm splits it.</b> scout plans research → draft → critique → revise.</li>
       <li><b>it hires agents.</b> the cheapest capable agent wins, in-house or outside.</li>
       <li><b>the judge checks the work.</b> rules first, then a model rubric. Fails are not paid.</li>

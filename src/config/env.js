@@ -1,7 +1,6 @@
 // Tiny loader for BOSS/.env and BOSS/.env.local (no dependency, no dotenv needed).
-// .env.local is written by scripts/localchain.mjs and overrides .env, so the
-// same process can point at a local chain without editing the committed file.
-// Keys stay server-side only. Never prefix a secret with VITE_.
+// Shell variables win, then .env, then .env.local, so a local override does not
+// require editing the committed example. Keys stay server-side only.
 import { readFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -23,17 +22,13 @@ export const env = {
   nearAiModel: process.env.NEAR_AI_MODEL || "",
   groqKey: process.env.GROQ_API_KEY || "",
   groqBaseUrl: process.env.GROQ_BASE_URL || "https://api.groq.com/openai/v1",
-  groqModel: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
+  groqModel: process.env.GROQ_MODEL || "openai/gpt-oss-120b",
   nearAccount: process.env.NEAR_ACCOUNT || "",
   nearPrivateKey: process.env.NEAR_PRIVATE_KEY || "",
   nearRpcUrl: process.env.NEAR_RPC_URL || "https://test.rpc.fastnear.com",
   nearNetwork:
     process.env.NEAR_NETWORK ||
     ((process.env.NEAR_RPC_URL || "").includes("mainnet") ? "mainnet" : "testnet"),
-  mainnetAccount: process.env.NEAR_MAINNET_ACCOUNT || "",
-  intentsApiUrl: process.env.NEAR_INTENTS_API_URL || "https://api.near-intents.org",
-  intentsJwt: process.env.NEAR_INTENTS_JWT || "",
-  evmRpcBaseSepolia: process.env.EVM_RPC_URL_BASE_SEPOLIA || "https://sepolia.base.org",
   siteUrl: (process.env.SITE_URL || process.env.RENDER_EXTERNAL_URL || "http://127.0.0.1:8787").replace(/\/+$/, ""),
   treasuryContractId: process.env.BOSS_TREASURY_CONTRACT_ID || "",
   marketContractId: process.env.BOSS_MARKET_CONTRACT_ID || "",

@@ -262,15 +262,16 @@ export class FirmWorker {
     const missing = requires.filter((t) => !this.tools.includes(t));
 
     if (missing.length) {
-      // The honest answer to "cite a live source" from a firm with no browser.
-      // It is a delivery of a refusal, which the client's rules catch, and the
-      // escrow goes back. Inventing a URL here would be the dishonest path.
+      // The honest answer to "read the chain" or "cite a live source" from a
+      // firm without that tool. It is a delivery of a refusal, which the
+      // client's rules catch, and the escrow goes back. Inventing a balance or
+      // a URL here would be the dishonest path.
       return {
         refused: true,
         missing,
         text:
           `I can't take this job. It requires ${missing.join(", ")}, and this firm has no ` +
-          `${missing.join(" or ")} tool installed. Rather than invent a source I did not read, ` +
+          `${missing.join(" or ")} tool installed. Rather than invent a number or a source I did not check, ` +
           `I am declining the job so the client's escrow can be refunded.`,
       };
     }

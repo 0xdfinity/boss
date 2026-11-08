@@ -4,10 +4,11 @@
 //
 // Starts the client server and the worker firm if they are not already up,
 // then runs:
-//   job A — a writing job the worker can do. The client fetches the result,
-//           checks its hash, judges it, and releases the escrow.
-//   job B — a research job that requires a browser. The worker has none, says
-//           so in writing, and the client refunds. No money moves on a claim.
+//   job A — a settlement checklist the worker can write. The client fetches the
+//           result, checks its hash, judges it, and releases the escrow.
+//   job B — a job that requires reading the chain. The worker has no RPC tool,
+//           says so in writing, and the client refunds. No money moves on a
+//           claim, and no balance is invented.
 //
 // Leaves nothing running unless you pass --keep. Every settlement prints a
 // nearblocks link you can open.
@@ -155,27 +156,28 @@ async function main() {
   if (!(await up(`${base}/health`))) throw new Error("client server did not start");
   if (!(await up(`${env.workerUrl}/health`))) throw new Error("worker did not start");
 
-  const pass = await runJob("job A — writing (should be paid)", {
+  const pass = await runJob("job A — settlement checklist (should be paid)", {
     capability: "writing",
     brief:
-      "Write exactly 5 numbered taglines for a coffee subscription that ships a new single-origin roast every month. " +
-      "Then name the strongest one and give a one-sentence reason. Keep it under 120 words.",
+      "Write 5 numbered checks a client runs after a worker submits a job to boss_market. " +
+      "Each check must use one of these fields - result_hash, result_url, deadline, released, refunded - " +
+      "and state what it compares and what counts as failure. Do not mention any other field. Under 120 words.",
     acceptance: [
-      "exactly 5 numbered taglines",
-      "one named strongest pick with a one-sentence reason",
+      "exactly 5 numbered checks",
+      "each check names a field and a failure condition",
       "under 120 words",
     ],
     depositUsd: 0.5,
     deadlineSecs: 900,
   });
 
-  const fail = await runJob("job B — research with a required live source (should be refunded)", {
+  const fail = await runJob("job B — needs the chain, which the worker cannot read (should be refunded)", {
     capability: "research",
     brief:
-      "Find one current, verifiable statistic about global coffee consumption and cite the source URL. " +
-      "Keep it under 80 words.",
-    acceptance: ["includes a source URL", "under 80 words"],
-    requires: ["browse"],
+      "Read the live NEAR balance of the client's treasury account from the chain and report it with the block height. " +
+      "Under 60 words.",
+    acceptance: ["a balance and a block height", "under 60 words"],
+    requires: ["rpc"],
     depositUsd: 0.5,
     deadlineSecs: 900,
   });
