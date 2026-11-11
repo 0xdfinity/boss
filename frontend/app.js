@@ -3,18 +3,13 @@
 // who was hired, what the judge scored, what the treasury actually paid.
 import { startSwarm } from "./swarm.js";
 import {
-  bridgePopup,
   connect as connectWallet,
   disconnect as forgetWallet,
-  loadWallet,
-  resume as resumeWallet,
+  restore as restoreWallet,
+  balanceOf,
   runAsClient,
 } from "./wallet.js";
 import { formatNear } from "./near-lite.js";
-
-// The wallet popup lands back on this page; if it does, hand the account id to
-// the tab that opened it and close before any UI is built.
-bridgePopup();
 
 const body = document.body;
 const thread = document.querySelector("#thread");
@@ -402,9 +397,9 @@ function paintWallet() {
   if (wallet) {
     walletBtn.textContent = wallet.accountId.replace(/\.testnet$/, "");
     walletBtn.classList.add("on");
-    walletBtn.title = `connected · ${wallet.accountId} · ${formatNear(wallet.balance || 0)} NEAR`;
+    walletBtn.title = `connected · ${wallet.accountId} · ${formatNear(wallet.balance?.amount ?? 0)} NEAR`;
     walletConnect.textContent = "disconnect";
-    walletState.textContent = `${wallet.accountId} · ${formatNear(wallet.balance || 0)} NEAR`;
+    walletState.textContent = `${wallet.accountId} · ${formatNear(wallet.balance?.amount ?? 0)} NEAR`;
     marketOwn.disabled = false;
   } else {
     walletBtn.textContent = "connect wallet";
@@ -417,36 +412,35 @@ function paintWallet() {
 }
 
 async function refreshWallet() {
-  const stored = loadWallet();
-  if (!stored) {
-    wallet = null;
-    return paintWallet();
-  }
-  try {
-    const resumed = await resumeWallet(stored);
-    wallet = resumed;
-    if (wallet) wallet.balance = await wallet.near.balance();
-  } catch {
-    wallet = null;
+  const restored = await restoreWallet();
+  wallet = restored ? { accountId: restored.accountId } : null;
+  if (wallet) {
+    try {
+      wallet.balance = await balanceOf(wallet.accountId);
+    } catch {
+      wallet.balance = null;
+    }
   }
   paintWallet();
 }
 
 async function connectNow() {
   if (walletBusy) return;
-  if (!marketContract) {
-    mlog("the market is not configured on this server", "bad");
-    return;
-  }
   walletBusy = true;
   walletConnect.disabled = true;
-  walletConnect.textContent = "waiting for the wallet…";
+  walletConnect.textContent = "waiting for your wallet.";
   try {
-    wallet = await connectWallet(marketContract);
+    const account = await connectWallet();
+    wallet = { accountId: account.accountId };
+    try {
+      wallet.balance = await balanceOf(wallet.accountId);
+    } catch {
+      wallet.balance = null;
+    }
     paintWallet();
-    mlog(`connected as ${wallet.accountId} · ${formatNear(wallet.balance)} NEAR · key scoped to the market contract`, "good");
+    mlog(`connected as ${account.accountId}${wallet.balance?.amount ? ` · ${formatNear(wallet.balance.amount)} NEAR` : ''}`, "good");
   } catch (e) {
-    mlog(`wallet: ${e.message}`, "bad");
+    mlog(`wallet: ${String(e?.message || e).slice(0, 200)}`, "bad");
     paintWallet();
   } finally {
     walletBusy = false;
@@ -465,7 +459,7 @@ walletConnect.addEventListener("click", async () => {
     forgetWallet();
     wallet = null;
     paintWallet();
-    mlog("wallet disconnected — the key is gone from this browser", "dim");
+    mlog("wallet disconnected", "dim");
     return;
   }
   await connectNow();
@@ -487,11 +481,11 @@ async function runOwnJob() {
   try {
     mlog(`you are the client · ${wallet.accountId}`, "dim");
     const out = await runAsClient({
-      wallet,
+      contract: marketContract,
+      rate: nearUsdRate,
       brief,
       capability: "writing",
       acceptance: ["answers every part of the brief", "under 200 words"],
-      rate: nearUsdRate,
       onLog: mlog,
     });
     await Promise.all([loadMarket(), paintLimits()]);

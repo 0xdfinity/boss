@@ -26,9 +26,20 @@ if (!TOKEN) {
 
 const query = VERCEL_TEAM_ID ? `?teamId=${encodeURIComponent(VERCEL_TEAM_ID)}` : '';
 const headers = { authorization: `Bearer ${TOKEN}` };
-const files = readdirSync(dir).filter((f) =>
-  /\.(html|js|css|json|svg|png|ico|txt|webmanifest)$/.test(f),
-);
+const walk = (root) => {
+  const out = [];
+  const go = (sub) => {
+    for (const entry of readdirSync(join(root, sub), { withFileTypes: true })) {
+      if (entry.name === 'package.json') continue;
+      const rel = sub ? `${sub}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) go(rel);
+      else if (/\.(html|js|css|json|svg|png|ico|txt|webmanifest)$/i.test(entry.name)) out.push(rel);
+    }
+  };
+  go('');
+  return out;
+};
+const files = walk(dir);
 
 const manifest = [];
 for (const file of files) {
