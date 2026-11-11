@@ -83,7 +83,12 @@ browser's point of view:
   ```
 
   The file is committed as `frontend/vercel.json`; change the host there when the
-  Render service name changes.
+  Render service name changes. The production site is deployed with
+  `npm run deploy:web`, which reads the shared Vercel token from
+  `HACKATHONS/.env` and reports the deployment URL; do not add the token to the
+  repo. The current project cannot be linked to GitHub from the API, so frontend
+  and backend do not both auto-deploy on push: the backend rebuilds from `main`,
+  the frontend needs one command.
 
 Set `SITE_URL` to the Vercel host, not the Render host, or new specs and results
 will point at the backend domain while the wallet returns to the frontend.
