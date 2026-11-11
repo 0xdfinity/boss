@@ -114,8 +114,7 @@ const me = await retry(() => near.viewAccount());
 console.log(`client firm: ${accountId}`);
 console.log(`balance:     ${(Number(me.amount) / 1e24).toFixed(3)} NEAR`);
 
-// ---- 1. market contract -------------------------------------------------
-
+// 1. market contract
 const marketId = process.env.BOSS_MARKET_CONTRACT_ID || env.BOSS_MARKET_CONTRACT_ID || `market.${accountId}`;
 let marketCreated = false;
 
@@ -170,8 +169,7 @@ if (deployed) {
   }
 }
 
-// ---- 2. second firm -----------------------------------------------------
-
+// 2. second firm
 let workerId = process.env.BOSS_WORKER_ACCOUNT || env.BOSS_WORKER_ACCOUNT || "";
 let workerKey = process.env.BOSS_WORKER_KEY || env.BOSS_WORKER_KEY || "";
 let workerKind = "existing";
@@ -218,8 +216,7 @@ if (BigInt(workerAcct.amount) < ONE_NEAR) {
   console.log(`worker:      funded 2 NEAR for gas`);
 }
 
-// ---- 3. probe -----------------------------------------------------------
-
+// 3. probe
 const [owner, arbiter, count, released, refunded] = await retry(() => near.callView(marketId, "config", {}));
 console.log(`\nmarket config: owner=${owner} arbiter=${arbiter || "none"} jobs=${count} released=${released} refunded=${refunded}`);
 

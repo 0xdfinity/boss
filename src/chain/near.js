@@ -8,7 +8,7 @@
 
 import { createPrivateKey, createPublicKey, generateKeyPairSync, sign as edSign, createHash } from "node:crypto";
 
-// ---------------------------------------------------------------- base58
+// base58
 const ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
 // Public fallback for testnet reads and sends. near.org's public endpoint is
@@ -34,7 +34,7 @@ export function b58encode(bytes) {
     }
   }
   let out = "1".repeat(zeros);
-  for (let i = digits.length - 1; i >= 0; i--) out += ALPHABET[digits[i]];
+  for (let i = digits.length - 1; i >= 0; i -= 1) out += ALPHABET[digits[i]];
   return out;
 }
 
@@ -59,7 +59,7 @@ export function b58decode(str) {
   return Buffer.concat([Buffer.alloc(zeros), Buffer.from(bytes.reverse())]);
 }
 
-// ---------------------------------------------------------------- keys
+// keys
 const PKCS8 = Buffer.from("302e020100300506032b657004220420", "hex");
 const SPKI = Buffer.from("302a300506032b6570032100", "hex");
 
@@ -101,7 +101,7 @@ export function generateKey() {
   };
 }
 
-// ---------------------------------------------------------------- borsh
+// borsh
 class Writer {
   constructor() {
     this.parts = [];
@@ -242,7 +242,7 @@ export function signTransaction(txBytes, seed) {
   return Buffer.concat([txBytes, w.toBuffer()]);
 }
 
-// ---------------------------------------------------------------- rpc
+// rpc
 export class Near {
   constructor({ rpcUrl, fallbackRpcUrl, accountId, privateKey }) {
     this.rpcUrl = rpcUrl || PUBLIC_RPC;

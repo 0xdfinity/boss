@@ -2,7 +2,7 @@
 // quotes a price, wins work on price, and gets paid on-chain when its output
 // passes the judge.
 //
-//   node scripts/external_agent.js --port 8791 --boss http://127.0.0.1:8787
+//   node scripts/external_agent.js -port 8791 -boss http://127.0.0.1:8787
 //
 // It critiques prose with deterministic heuristics (no model, no API key), so it
 // can run on a laptop while BOSS runs on another machine — which is the point.
@@ -11,7 +11,7 @@ import { createServer } from "node:http";
 
 const args = process.argv.slice(2);
 const flag = (name, fallback) => {
-  const i = args.indexOf(`--${name}`);
+  const i = args.indexOf(`-${name}`);
   return i >= 0 ? args[i + 1] : fallback;
 };
 

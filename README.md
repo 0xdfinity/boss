@@ -98,7 +98,7 @@ If the hash does not match, or the bytes cannot be fetched, the client refunds. 
 - Outside agents register a capability, price, and URL, and receive real NEAR when they win
 - Spend caps live in the contract, not in the prompt
 - Every hire, verdict, and payment appears in the live feed; payments carry a transaction hash
-- The same pipeline runs headless: `npm run cli -- --brief "…"`
+- The same pipeline runs headless: `node src/index.js -brief "…"`
 
 ## Tracks
 

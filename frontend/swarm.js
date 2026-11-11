@@ -53,7 +53,7 @@ export function startSwarm(canvas) {
     const rx = Math.min(w * 0.27, 340);
     const ry = Math.min(h * 0.135, 118);
 
-    // ---- mantle: superellipse dome, flat-ish where the arms attach ----
+    // mantle: superellipse dome, flat-ish where the arms attach
     const cols = Math.ceil(w / s) + 2;
     const rows = Math.ceil(h / s) + 2;
 

@@ -1,4 +1,4 @@
-// BOSS CLI: node src/index.js --budget 5 --brief "write the checks before release"
+// BOSS CLI: node src/index.js -budget 5 -brief "write the checks before release"
 import { runJob } from "./firm/run.js";
 
 function parseArgs(argv) {
@@ -11,8 +11,8 @@ function parseArgs(argv) {
       "One sentence each, naming the field and the failure condition. Under 120 words.",
   };
   for (let i = 2; i < argv.length; i++) {
-    if (argv[i] === "--budget") args.budget = Number(argv[++i]);
-    if (argv[i] === "--brief" || argv[i] === "--task") args.brief = argv[++i];
+    if (argv[i] === "-budget") args.budget = Number(argv[++i]);
+    if (argv[i] === "-brief" || argv[i] === "-task") args.brief = argv[++i];
   }
   return args;
 }
@@ -34,4 +34,4 @@ const result = await runJob({
 });
 
 console.log(`\npaid ${result.paid}, refused ${result.rejected}, spent $${Number(result.spent).toFixed(2)} of $${budget}`);
-if (result.artifact) console.log(`\n--- deliverable ---\n${result.artifact}`);
+if (result.artifact) console.log(`\ndelivered:\n${result.artifact}`);

@@ -67,8 +67,7 @@ export class FirmWorker {
     return entry;
   }
 
-  // ---- HTTP surface ------------------------------------------------------
-
+  // HTTP surface
   card() {
     return {
       protocol: "boss/1",
@@ -190,8 +189,7 @@ export class FirmWorker {
     this.server = null;
   }
 
-  // ---- market loop -------------------------------------------------------
-
+  // market loop
   async tick() {
     if (this.busy) return;
     this.busy = true;

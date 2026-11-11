@@ -5,7 +5,7 @@
 // the operator's own money, so this puts it back where it is needed.
 //
 // The worker keeps a reserve for its own transaction fees and storage. Nothing
-// is signed without `--yes`: the default run only prints the plan.
+// is signed without `-yes`: the default run only prints the plan.
 //
 // No process.exit() here. On Windows, exiting while the RPC socket is closing
 // trips a libuv assertion and aborts with a status that looks like a crash, so
@@ -55,8 +55,8 @@ async function main() {
 
   console.log(`\nplan:    transfer ${near(move)} NEAR`);
 
-  if (!process.argv.includes("--yes")) {
-    console.log("\nnot sent. re-run with --yes to sign it.");
+  if (!process.argv.includes("-yes")) {
+    console.log("\nnot sent. re-run with -yes to sign it.");
     return;
   }
 

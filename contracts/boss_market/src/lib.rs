@@ -244,8 +244,7 @@ impl BossMarket {
         Promise::new(client).transfer(NearToken::from_yoctonear(amount.0))
     }
 
-    // ---- views -----------------------------------------------------------
-
+    // views
     pub fn get_job(&self, job_id: u64) -> Job {
         self.load(job_id)
     }
@@ -277,8 +276,7 @@ impl BossMarket {
         )
     }
 
-    // ---- internal --------------------------------------------------------
-
+    // internal
     fn load(&self, job_id: u64) -> Job {
         self.jobs
             .get(job_id as u32)

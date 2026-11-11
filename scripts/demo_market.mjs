@@ -10,7 +10,7 @@
 //           says so in writing, and the client refunds. No money moves on a
 //           claim, and no balance is invented.
 //
-// Leaves nothing running unless you pass --keep. Every settlement prints a
+// Leaves nothing running unless you pass -keep. Every settlement prints a
 // nearblocks link you can open.
 
 import { spawn } from "node:child_process";
@@ -20,7 +20,7 @@ import { env } from "../src/config/env.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const base = `http://localhost:${env.port}`;
-const keep = process.argv.includes("--keep");
+const keep = process.argv.includes("-keep");
 const children = [];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

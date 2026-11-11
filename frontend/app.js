@@ -100,7 +100,7 @@ const syncSend = () => {
   sendBtn.disabled = taskEl.value.trim().length === 0;
 };
 
-// ---------- boot copy ----------
+// boot copy
 add(
   "I run a small firm: I plan the job, hire agents, check the work, and pay only what passes.",
   "boss"
@@ -108,13 +108,13 @@ add(
 add("Send a brief. The model proposes, the contract decides. $2.00 per agent, $20.00 a day.", "note");
 setSpent(0);
 
-// ---------- waking overlay ----------
+// waking overlay
 // The free instance sleeps when idle; only cover the screen if the first
 // health call takes longer than a beat.
 const boot = document.querySelector("#boot");
 const bootTimer = window.setTimeout(() => boot?.classList.add("show"), 700);
 
-// ---------- health ----------
+// health
 let marketContract = "";
 let nearUsdRate = 10;
 async function readHealth() {
@@ -148,7 +148,7 @@ for (let attempt = 0; attempt < 6; attempt++) {
 window.clearTimeout(bootTimer);
 boot?.classList.remove("show");
 
-// ---------- composer ----------
+// composer
 // Size the box to what is actually painted. The placeholder is drawn like
 // content but is not part of scrollHeight, so an empty composer whose
 // placeholder wraps (a phone) would otherwise be cut off.
@@ -201,14 +201,38 @@ document.querySelector("#cta").addEventListener("click", () => {
   form.requestSubmit();
 });
 
-// ---------- overlay ----------
+// Live ledger: show the on-chain counts; the static numbers are the last-known
+// ones and stay readable if the market is unreachable.
+(async () => {
+  try {
+    const res = await fetch("/api/market");
+    const m = await res.json();
+    const jobsEl = document.querySelector("#ledgerJobs");
+    if (jobsEl && Number.isFinite(Number(m.jobs))) {
+      jobsEl.textContent = String(m.jobs);
+      document.querySelector("#ledgerReleased").textContent = String(m.released);
+      document.querySelector("#ledgerRefunded").textContent = String(m.refunded);
+    }
+  } catch {
+    /* the static numbers stay */
+  }
+})();
+
+document.querySelector("#ledgerBtn")?.addEventListener("click", () => {
+  document.querySelector("#marketBtn")?.click();
+});
+document.querySelector("#heroClient")?.addEventListener("click", () => {
+  document.querySelector("#walletBtn")?.click();
+});
+
+// overlay
 howBtn.addEventListener("click", () => (overlay.hidden = false));
 closeHow.addEventListener("click", () => (overlay.hidden = true));
 overlay.addEventListener("click", (e) => {
   if (e.target === overlay) overlay.hidden = true;
 });
 
-// ---------- market ----------
+// market
 const marketOverlay = document.querySelector("#marketOverlay");
 const marketBtn = document.querySelector("#marketBtn");
 const closeMarket = document.querySelector("#closeMarket");
@@ -366,7 +390,7 @@ marketOverlay.addEventListener("click", (e) => {
 marketRefresh.addEventListener("click", loadMarket);
 marketDemo.addEventListener("click", runMarketDemo);
 
-// ---------- wallet: the client is whoever holds the key ----------
+// wallet: the client is whoever holds the key
 const walletBtn = document.querySelector("#walletBtn");
 const walletConnect = document.querySelector("#walletConnect");
 const walletState = document.querySelector("#walletState");
@@ -496,7 +520,7 @@ async function runOwnJob() {
 marketOwn.addEventListener("click", runOwnJob);
 refreshWallet();
 
-// ---------- what is left of the public allowance ----------
+// what is left of the public allowance
 const limitsLine = document.querySelector("#limitsLine");
 
 async function paintLimits() {
@@ -521,7 +545,7 @@ window.addEventListener("keydown", (e) => {
   }
 });
 
-// ---------- job ----------
+// job
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
   const brief = taskEl.value.trim();

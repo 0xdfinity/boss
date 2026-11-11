@@ -47,7 +47,7 @@ log(`parent:  ${env.nearAccount}`);
 log(`client:  ${accountId}   (throwaway: wallet key + scoped key)`);
 log(`market:  ${env.marketContractId}`);
 
-// ---- 1. create the client with both keys in one transaction ---------------
+// 1. create the client with both keys in one transaction
 const created = await parent.createAccount({
   newAccountId: accountId,
   publicKey: walletKey.publicKey, // stands in for the wallet's own key
@@ -95,7 +95,7 @@ log(`allowed:     ${(scoped.method_names || []).join(", ")}`);
 log(`balance:     ${formatNear(await browser.balance())} NEAR`);
 log();
 
-// ---- 2. the rule the UI is built around: function-call keys cannot escrow --
+// 2. the rule the UI is built around: function-call keys cannot escrow
 const probeArgs = {
   capability: "writing",
   spec_hash: "00".repeat(32),
@@ -120,7 +120,7 @@ if (!refused) die(`the scoped key attached a deposit — that should be impossib
 log("refused:     the scoped key cannot attach a deposit (expected)");
 log();
 
-// ---- 3. publish the spec (server stores prose; chain keeps the hash) -------
+// 3. publish the spec (server stores prose; chain keeps the hash)
 const brief =
   "Write exactly 5 numbered taglines for a coffee subscription that ships a new single-origin roast every month. " +
   "Then name the strongest one and give a one-sentence reason. Keep it under 120 words.";
@@ -138,7 +138,7 @@ const spec = await specRes.json();
 if (!specRes.ok) die(`spec: ${spec.error || specRes.status}`);
 log(`spec:    ${spec.hash.slice(0, 16)}…  ${spec.specUrl}`);
 
-// ---- 4. open_job with the wallet key (this is the tx the popup would sign) -
+// 4. open_job with the wallet key (this is the tx the popup would sign) -
 const before = Number(await browser.callView(env.marketContractId, "job_count", {}).catch(() => 0));
 const deposit = usdToYocto(0.5, env.nearUsdRate);
 const opened = await wallet.openJob({
@@ -164,7 +164,7 @@ if (jobId === null) die("job opened but the id could not be read back");
 log(`job id:  ${jobId}`);
 log();
 
-// ---- 5. wait for the second firm, judge, then settle with the scoped key ---
+// 5. wait for the second firm, judge, then settle with the scoped key
 const started = Date.now();
 let job = null;
 while (Date.now() - started < 240_000) {

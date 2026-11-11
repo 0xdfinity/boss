@@ -28,7 +28,7 @@ export function b58encode(input) {
     }
   }
   let out = "1".repeat(zeros);
-  for (let i = digits.length - 1; i >= 0; i--) out += ALPHABET[digits[i]];
+  for (let i = digits.length - 1; i >= 0; i -= 1) out += ALPHABET[digits[i]];
   return out;
 }
 
@@ -84,8 +84,7 @@ export const b64ToBytes = (b64) => {
 export const bytesToHex = (bytes) =>
   [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
 
-// ---------------------------------------------------------------- keys
-
+// keys
 // PKCS#8 wrapper around a raw 32-byte ed25519 seed, the same prefix
 // src/chain/near.js uses. WebCrypto will not derive a public key from a
 // private one, so the key pair is generated once and both halves are stored.
@@ -133,8 +132,7 @@ function privateKey(seed) {
   return keyCache.get(id);
 }
 
-// ---------------------------------------------------------------- borsh
-
+// borsh
 class Writer {
   constructor() {
     this.parts = [];
@@ -250,8 +248,7 @@ export async function signTransaction(txBytes, secret) {
   return concat([txBytes, w.concat()]);
 }
 
-// ---------------------------------------------------------------- money
-
+// money
 /** USD -> yoctoNEAR. Integer math: 0.5/10*1e24 has more digits than a float. */
 export function usdToYocto(usd, rate = 10) {
   const perNear = Number(rate) > 0 ? Number(rate) : 10;
@@ -263,8 +260,7 @@ export function usdToYocto(usd, rate = 10) {
 
 export const formatNear = (yocto) => (Number(yocto) / 1e24).toFixed(4);
 
-// ---------------------------------------------------------------- rpc
-
+// rpc
 const RPC_URL = "https://test.rpc.fastnear.com";
 
 export class BrowserNear {

@@ -111,8 +111,7 @@ function readBody(req) {
 
 const jobs = new Map();
 
-// ---- cross-firm market helpers -----------------------------------------
-
+// cross-firm market helpers
 function specPath(hash) {
   return join(specDir, `${hash}.json`);
 }
@@ -220,7 +219,6 @@ function marketReady(res) {
   return false;
 }
 
-
 function createJob({ brief, budget = 20, client = "you" }) {
   const id = randomUUID().slice(0, 8);
   const job = { id, brief, budget, client, status: "running", createdAt: new Date().toISOString(), events: [] };
@@ -284,14 +282,14 @@ const server = createServer(async (req, res) => {
     });
   }
 
-  // ---- public demo limits ----------------------------------------------
+  // public demo limits
   // The UI shows these before someone presses send, and they are the numbers
   // that keep a hosted instance from draining the operator's key and wallet.
   if (url.pathname === "/api/limits" && req.method === "GET") {
     return json(res, 200, { ok: true, ...limits.snapshot(clientIp(req)) });
   }
 
-  // ---- run a job, streamed (the chat UI) ----
+  // run a job, streamed (the chat UI)
   if (url.pathname === "/api/mission/stream" && req.method === "GET") {
     const brief = (url.searchParams.get("task") || "").trim();
     const budget = limits.clampBudget(url.searchParams.get("budget"));
@@ -322,7 +320,7 @@ const server = createServer(async (req, res) => {
     return res.end();
   }
 
-  // ---- run a job, one shot ----
+  // run a job, one shot
   if (url.pathname === "/api/mission" && req.method === "POST") {
     let body;
     try {
@@ -352,7 +350,7 @@ const server = createServer(async (req, res) => {
     }
   }
 
-  // ---- BOSS as a worker: another company or agent hires it ----
+  // BOSS as a worker: another company or agent hires it
   if (url.pathname === "/api/firm/work" && req.method === "POST") {
     let body;
     try {
@@ -394,7 +392,7 @@ const server = createServer(async (req, res) => {
     }
   }
 
-  // ---- job queue ----
+  // job queue
   if (url.pathname === "/api/firm/jobs" && req.method === "GET") {
     return json(res, 200, {
       jobs: [...jobs.values()]
@@ -449,7 +447,7 @@ const server = createServer(async (req, res) => {
     });
   }
 
-  // ---- agent registry ----
+  // agent registry
   if (url.pathname === "/api/agents" && req.method === "GET") {
     return json(res, 200, { agents: listAgents() });
   }
@@ -466,13 +464,12 @@ const server = createServer(async (req, res) => {
     }
   }
 
-  // ---- treasury ----
+  // treasury
   if (url.pathname === "/api/treasury" && req.method === "GET") {
     return json(res, 200, await treasury.snapshot());
   }
 
-  // ---- cross-firm market ------------------------------------------------
-
+  // cross-firm market
   // Everything the market panel needs in one call: contract state, the local
   // specs this firm published, and whether the second firm is awake.
   if (url.pathname === "/api/market" && req.method === "GET") {
@@ -652,7 +649,7 @@ const server = createServer(async (req, res) => {
     }
   }
 
-  // ---- static web app ----
+  // static web app
   const file = url.pathname === "/" ? "index.html" : url.pathname.slice(1);
   const full = join(webRoot, file);
 

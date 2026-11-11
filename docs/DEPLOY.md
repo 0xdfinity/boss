@@ -30,7 +30,7 @@ storage stake does not count — if a create fails with `LackBalanceForState`,
 compare `amount` and `locked`, not just the headline balance.
 
 Released jobs pay the second firm, so its balance grows while the client's
-shrinks. `npm run sweep` shows what it is holding and, with `--yes`, transfers
+shrinks. `npm run sweep` shows what it is holding and, with `-yes`, transfers
 the surplus back and leaves a 1 NEAR reserve.
 
 ## 2. Render (blueprint included)
