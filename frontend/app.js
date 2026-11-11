@@ -111,7 +111,7 @@ setSpent(0);
 // ---------- health ----------
 let marketContract = "";
 let nearUsdRate = 10;
-try {
+async function readHealth() {
   const res = await fetch("/health");
   const health = await res.json();
   const models = health.live?.models || [];
@@ -122,8 +122,22 @@ try {
     models.length ? `models: ${models.join(" → ")}` : "no model key — the firm refuses the first stage",
     chain.mode === "near" ? `treasury: ${chain.contract} on ${chain.network}` : "treasury: local mirror",
   ].join(" · ");
-} catch {
-  spentPill.title = "offline";
+}
+
+// Render's free plan sleeps after 15 idle minutes and can take about a minute to
+// answer the first request. Retry before calling the firm offline.
+for (let attempt = 0; attempt < 6; attempt++) {
+  try {
+    await readHealth();
+    break;
+  } catch {
+    if (attempt === 5) {
+      spentPill.title = "offline";
+      break;
+    }
+    if (attempt === 0) spentPill.title = "waking the firm...";
+    await new Promise((r) => setTimeout(r, 5000 + attempt * 5000));
+  }
 }
 
 // ---------- composer ----------
