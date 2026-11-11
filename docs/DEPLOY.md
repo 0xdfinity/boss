@@ -82,11 +82,8 @@ browser's point of view:
   ] }
   ```
 
-  The file is committed as `frontend/vercel.json`; change the host there when the
-  Render service name changes. The production site is deployed with
-  `npm run deploy:web`, which reads the shared Vercel token from
-  `HACKATHONS/.env` and reports the deployment URL; do not add the token to the
-  repo. The current project cannot be linked to GitHub from the API, so frontend
+  The command reads the shared deploy token from one file above the project root
+  and reports the deployment URL; do not add that token to the repo. The current project cannot be linked to GitHub from the API, so frontend
   and backend do not both auto-deploy on push: the backend rebuilds from `main`,
   the frontend needs one command.
 

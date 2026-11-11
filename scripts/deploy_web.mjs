@@ -7,9 +7,8 @@
 // The Render backend auto-deploys from `main`; this is the matching button for
 // the static site.
 //
-// Reads the shared credentials from HACKATHONS/.env (the file next to the
-// HACKATHONS root), never from a repo. Never commit that file, and never print
-// the token.
+// Reads the shared deploy token from the .env one directory above the project
+// root, never from a repo. Never commit that file, and never print the token.
 import { readFileSync, readdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join, dirname } from 'node:path';
@@ -21,7 +20,7 @@ const dir = join(root, 'frontend');
 const PROJECT = process.env.VERCEL_PROJECT ?? 'boss-near';
 const TOKEN = process.env.VERCEL_TOKEN ?? VERCEL;
 if (!TOKEN) {
-  console.error('no Vercel token (env VERCEL_TOKEN, or HACKATHONS/.env VERCEL)');
+  console.error('no Vercel token (env VERCEL_TOKEN, or the .env one directory above the project root)');
   process.exit(1);
 }
 

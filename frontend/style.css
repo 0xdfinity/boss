@@ -712,3 +712,53 @@ body.chatting .thread { display: flex; }
   .msg, .overlay-card { animation: none; }
   #swarm { transition: none; }
 }
+
+/* ---------- waking the firm ---------- */
+.boot {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg);
+  background-image: radial-gradient(var(--dot) 1.15px, transparent 1.15px);
+  background-size: 22px 22px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+
+.boot.show { opacity: 1; pointer-events: auto; }
+
+.boot-inner { text-align: center; max-width: 360px; padding: 0 24px; }
+
+.boot-mark {
+  margin: 0 auto 18px;
+  display: block;
+  animation: bootPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes bootPulse {
+  0%, 100% { transform: scale(1); opacity: 0.78; }
+  50% { transform: scale(1.14); opacity: 1; }
+}
+
+.boot-title {
+  margin: 0 0 8px;
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.boot-sub {
+  margin: 0;
+  color: var(--dim);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boot-mark { animation: none; }
+  .boot { transition: none; }
+}

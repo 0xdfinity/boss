@@ -215,7 +215,7 @@ function marketReady(res) {
   if (market.live) return true;
   json(res, 503, {
     error: "the market is not configured on this server",
-    fix: "set BOSS_MARKET_CONTRACT_ID and a funded NEAR key, or run: npm run deploy:market",
+    fix: "set BOSS_MARKET_CONTRACT_ID and a funded NEAR key on the server",
   });
   return false;
 }

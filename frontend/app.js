@@ -108,6 +108,12 @@ add(
 add("Send a brief. The model proposes, the contract decides. $2.00 per agent, $20.00 a day.", "note");
 setSpent(0);
 
+// ---------- waking overlay ----------
+// The free instance sleeps when idle; only cover the screen if the first
+// health call takes longer than a beat.
+const boot = document.querySelector("#boot");
+const bootTimer = window.setTimeout(() => boot?.classList.add("show"), 700);
+
 // ---------- health ----------
 let marketContract = "";
 let nearUsdRate = 10;
@@ -139,6 +145,8 @@ for (let attempt = 0; attempt < 6; attempt++) {
     await new Promise((r) => setTimeout(r, 5000 + attempt * 5000));
   }
 }
+window.clearTimeout(bootTimer);
+boot?.classList.remove("show");
 
 // ---------- composer ----------
 // Size the box to what is actually painted. The placeholder is drawn like
@@ -239,7 +247,7 @@ async function loadMarket() {
     nearUsdRate = Number(m.rate) > 0 ? Number(m.rate) : 10;
     mktWorker.textContent = m.worker?.online
       ? `${m.worker.account} · ${(m.worker.capabilities || []).join(", ")}`
-      : "offline — run npm run worker";
+      : "offline for now";
     mktSettled.textContent = `${m.released || 0} released · ${m.refunded || 0} refunded · ${m.jobs || 0} jobs`;
     return m;
   } catch (e) {
@@ -290,7 +298,7 @@ async function runMarketDemo() {
   try {
     const m = await loadMarket();
     if (!m.contract) throw new Error("the market is not configured on this server");
-    if (!m.worker?.online) throw new Error("the second firm is offline — run: npm run worker");
+    if (!m.worker?.online) throw new Error("the second firm is offline — refresh in a moment");
 
     mlog(`job A — writing · client ${m.account} · worker ${m.worker.account}`, "dim");
     const a = await postJob({
