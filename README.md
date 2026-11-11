@@ -22,6 +22,10 @@ The differentiator is the second outcome: when a claim does not survive the chec
 
 ## Demo
 
+**Live:** [boss-near.vercel.app](https://boss-near.vercel.app). The site is static on Vercel; the API and both firms run on Render, and `/api`, `/health` and `/result` are proxied to it.
+
+The hosted instance runs the same code end to end. Job 27 was opened from the deployed server, the worker delivered in four seconds, the client matched `result_hash`, scored it 95/100 and [released the escrow](https://testnet.nearblocks.io/txns/2E87AmLzgNU9Y1P8SfQKBDXuxtTFdQ4GVNgZk29cF7hZ); its spec and [deliverable](https://boss-near.vercel.app/result/27) are on public URLs.
+
 ![BOSS running a job against the NEAR treasury](docs/boss-ui.png)
 
 ```console

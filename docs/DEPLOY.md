@@ -62,6 +62,43 @@ If you want the second firm on its own host, deploy the same image twice:
 That costs a second always-on instance. A free worker spins down after 15 idle
 minutes, stops polling for jobs, and the demo stops finding a worker.
 
+### Frontend on Vercel, backend on Render
+
+The live deployment splits the two, which keeps the app on one origin from the
+browser's point of view:
+
+- **Render** runs the image (`Dockerfile`, plan free, no disk) with
+  `BOSS_EMBED_WORKER=1`, `BOSS_BIND=0.0.0.0`, `BOSS_TRUST_PROXY=1`, the NEAR ids
+  and keys, `GROQ_API_KEY`, and `SITE_URL` set to the Vercel host.
+- **Vercel** serves `frontend/` as a static site and proxies the API, so the
+  wallet callback, `fetch("/api/...")` and the `result_url` links all stay on one
+  origin:
+
+  ```json
+  { "rewrites": [
+    { "source": "/api/:path*", "destination": "https://<service>.onrender.com/api/:path*" },
+    { "source": "/health", "destination": "https://<service>.onrender.com/health" },
+    { "source": "/result/:path*", "destination": "https://<service>.onrender.com/result/:path*" }
+  ] }
+  ```
+
+  The file is committed as `frontend/vercel.json`; change the host there when the
+  Render service name changes.
+
+Set `SITE_URL` to the Vercel host, not the Render host, or new specs and results
+will point at the backend domain while the wallet returns to the frontend.
+
+Two things to know about the free plan: the service sleeps after 15 idle minutes,
+so the first request after a quiet spell waits about a minute (the API is fine
+once awake), and there is no disk, so `data/limits.json` resets on every restart.
+Counters resetting only lowers what is allowed, but treat the link as a demo, not
+as an open faucet.
+
+Deployment protection is on by default for new Vercel projects. A project with
+`ssoProtection: {"deploymentType":"all_except_custom_domains"}` serves a Vercel
+login page to visitors; clear it (`PATCH /v9/projects/<name>` with
+`ssoProtection: null`) or every public link looks broken.
+
 ## 3. Railway, Fly, or a VPS
 
 The same image works anywhere:
