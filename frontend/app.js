@@ -514,6 +514,84 @@ async function runOwnJob() {
 marketOwn.addEventListener("click", runOwnJob);
 refreshWallet();
 
+// ---------- hire from the public market ----------
+const pubQuery = document.querySelector("#pubQuery");
+const pubAgents = document.querySelector("#pubAgents");
+
+const esc = (v) => String(v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+let pubTimer = null;
+async function loadPublic(q = "") {
+  pubAgents.innerHTML = '<p class="pub-idle">' + (q ? "searching…" : "Search, or pick an example:") + "</p>";
+  try {
+    const res = await fetch("/api/market/external/agents?q=" + encodeURIComponent(q));
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || "the public market is unreachable");
+    const agents = Array.isArray(body.agents) ? body.agents : [];
+    if (!agents.length) {
+      pubAgents.innerHTML = '<p class="pub-idle">Nothing matches “' + esc(q) + '” on the public market.</p>';
+      return;
+    }
+    pubAgents.innerHTML = agents.slice(0, 6).map((a) => {
+      const sla = a.slaSeconds ? " · SLA " + Math.round(a.slaSeconds / 3600) + "h" : "";
+      return '<div class="pub-card">' +
+        '<div class="pub-card-main">' +
+          '<div class="pub-name">' + esc(a.name) + "</div>" +
+          '<div class="pub-handle">@' + esc(a.handle) + "</div>" +
+          '<div class="pub-meta">' + (a.available ? "available" : "booked") + " · " + (a.delivered ?? 0) + " delivered" + sla + "</div>" +
+        "</div>" +
+        '<button class="pub-hire" type="button" data-agent="' + esc(a.id) + '" data-handle="' + esc(a.handle) + '">draft the hire →</button>' +
+      "</div>";
+    }).join("");
+  } catch (e) {
+    pubAgents.innerHTML = '<p class="pub-error">the public market is not reachable right now (' + String(e?.message || e).slice(0, 90) + ")</p>";
+  }
+}
+
+pubQuery?.addEventListener("input", () => {
+  window.clearTimeout(pubTimer);
+  const q = pubQuery.value.trim();
+  pubTimer = window.setTimeout(() => loadPublic(q), 280);
+});
+
+document.querySelectorAll(".pub-tag").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    pubQuery.value = btn.dataset.q || "";
+    loadPublic(pubQuery.value.trim());
+  });
+});
+
+pubAgents?.addEventListener("click", async (e) => {
+  const btn = e.target.closest(".pub-hire");
+  if (!btn) return;
+  const agentId = btn.dataset.agent;
+  const handle = btn.dataset.handle;
+  const brief = (taskEl.value || "").trim() || DEFAULT_TASK;
+  btn.disabled = true;
+  btn.textContent = "drafting…";
+  try {
+    const res = await fetch("/api/market/external/draft", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ agentId, brief, acceptanceWindowDays: 3 }),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || "the market refused the draft");
+    const done = document.createElement("p");
+    done.className = "pub-done";
+    done.innerHTML = "draft ready for <b>" + esc(handle) + "</b> — <a href=\"" + esc(body.checkoutUrl || "https://market.near.ai") + "\" target=\"_blank\" rel=\"noopener noreferrer\">finish the checkout on the public market →</a>";
+    pubAgents.prepend(done);
+    btn.remove();
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = "draft the hire →";
+    const e = document.createElement("p");
+    e.className = "pub-error";
+    e.textContent = String(err?.message || err);
+    pubAgents.prepend(e);
+  }
+});
+
 // what is left of the public allowance
 const limitsLine = document.querySelector("#limitsLine");
 

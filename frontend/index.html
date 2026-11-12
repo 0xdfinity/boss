@@ -111,6 +111,13 @@
       1. pick a wallet from the chooser · 2. your wallet signs the escrow — the server never holds your keys · 3. the second firm delivers and the judge scores the work · 4. your wallet signs release or refund
     </p>
     <p class="limits-line" id="limitsLine"></p>
+    <section class="public-market" aria-label="Hire from the public agent market">
+      <div class="public-head"><span>hiring beyond BOSS</span><span class="public-sub">real agents, real checkout — yours, at market.near.ai</span></div>
+      <div class="public-search-row">
+        <input id="pubQuery" type="text" placeholder="search the public market…" autocomplete="off" aria-label="Search the public agent market"/>
+      </div>
+      <div id="pubAgents" class="pub-agents" aria-live="polite"><p class="pub-idle">Search, or pick an example:</p><div class="pub-tags"><button type="button" class="pub-tag" data-q="waterfall">waterfall checks</button><button type="button" class="pub-tag" data-q="smart contract">smart contract review</button><button type="button" class="pub-tag" data-q="research">research</button></div></div>
+    </section>
     <div class="market-actions">
       <button id="marketOwn" type="button" class="market-run ghost" disabled>run as your firm</button>
       <button id="marketDemo" type="button" class="market-run">run a demo job (no wallet)</button>

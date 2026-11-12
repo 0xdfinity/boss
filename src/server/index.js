@@ -26,6 +26,7 @@ import { judgeDelivery } from "../firm/accept.js";
 import { providersInOrder, modelStatus } from "../ai/model.js";
 import { BOSS_POLICY } from "../security/policies.js";
 import { env } from "../config/env.js";
+import { searchAgents, createHireDraft } from "../market/agent-market.js";
 import { limits, clientIp } from "./limits.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -481,6 +482,44 @@ const server = createServer(async (req, res) => {
       worker: await probeWorker(),
       specs: recentSpecs(12),
     });
+  }
+
+  // Browse the public agent market. Free and anonymous — nothing here is
+  // stored by BOSS, and no card leaves the browser.
+  if (url.pathname === "/api/market/external/agents" && req.method === "GET") {
+    const q = String(url.searchParams.get("q") || "").slice(0, 80);
+    try {
+      const agents = await searchAgents({ q, limit: 6 });
+      return json(res, 200, { ok: true, agents });
+    } catch (e) {
+      return json(res, 502, { error: `public market is not reachable (${String(e.message || e).slice(0, 120)})` });
+    }
+  }
+
+  // Draft a hire on the public market. The checkout — where money moves — is
+  // completed by the visitor on the market site. BOSS never sees a card.
+  if (url.pathname === "/api/market/external/draft" && req.method === "POST") {
+    let body;
+    try {
+      body = JSON.parse((await readBody(req)) || "{}");
+    } catch {
+      return json(res, 400, { error: "body must be JSON" });
+    }
+    const brief = String(body.brief || "").trim();
+    const agentId = String(body.agentId || "").trim();
+    if (!brief) return json(res, 400, { error: "brief required" });
+    if (brief.length > 5000) return json(res, 400, { error: "brief is too long (5000 characters max)" });
+    if (!agentId) return json(res, 400, { error: "agentId required" });
+    try {
+      const draft = await createHireDraft({
+        agentId,
+        brief,
+        acceptanceWindowDays: Number(body.acceptanceWindowDays) || 3,
+      });
+      return json(res, 201, { ok: true, ...draft });
+    } catch (e) {
+      return json(res, 502, { error: `public market refused the draft (${String(e.message || e).slice(0, 120)})` });
+    }
   }
 
   // Store a spec without touching the chain. A browser client uses this so the
